@@ -1,0 +1,112 @@
+version: '3'
+
+# Hadoop Cluster
+x-hadoop:
+  common: &hadoop-common
+    image: data-infra:hadoop
+    build:
+      context: hadoop
+      dockerfile: dockerfile
+  master-dependency: &hadoop-master-dependency
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+      - hadoop-worker-1
+      - hadoop-worker-2
+      - hadoop-worker-3
+
+x-hadoop-cluster: &hadoop-cluster
+
+  hadoop-master-1:
+    <<: [
+      *hadoop-common,
+      *hadoop-master-dependency
+    ]
+    container_name: hadoop-master-1
+    hostname: hadoop-master-1
+    command: ["start-namenode.sh"]
+    environment:
+      ACTIVE_NN: 1
+    ports:
+      - "9870:9870" # nn web-ui
+      - "9868:9868" # secondary nn web-ui
+      - "8088:8088" # yarn rm web-ui
+      - "19888:19888" # job history server web-ui
+
+  hadoop-master-2:
+    <<: [
+      *hadoop-common,
+      *hadoop-master-dependency
+    ]
+    container_name: hadoop-master-2
+    hostname: hadoop-master-2
+    command: ["start-namenode.sh"]
+    ports:
+      - "9871:9870" # nn web-ui
+      - "9869:9868" # secondary nn web-ui
+      - "8089:8088" # yarn rm web-ui
+      - "19889:19888" # job history server web-ui
+
+  hadoop-worker-1:
+    <<: *hadoop-common
+    container_name: hadoop-worker-1
+    hostname: hadoop-worker-1
+    command: ["start-datanode.sh"]
+    environment:
+      BALANCER_NODE: 1
+
+  hadoop-worker-2:
+    <<: *hadoop-common
+    container_name: hadoop-worker-2
+    hostname: hadoop-worker-2
+    command: ["start-datanode.sh"]
+
+  hadoop-worker-3:
+    <<: *hadoop-common
+    container_name: hadoop-worker-3
+    hostname: hadoop-worker-3
+    command: ["start-datanode.sh"]
+
+# Zookeeper Cluster
+x-zookeeper:
+  common: &zookeeper-common
+    image: zookeeper:3.7.0
+    # env_file:
+    #   - .envs/zookeeper.env
+    restart: on-failure
+
+x-zookeeper-cluster: &zookeeper-cluster
+
+  zookeeper-1:
+    <<: *zookeeper-common
+    container_name: zookeeper-1
+    hostname: zookeeper-1
+    environment:
+      ZOO_MY_ID: 1
+
+  zookeeper-2:
+    <<: *zookeeper-common
+    container_name: zookeeper-2
+    hostname: zookeeper-2
+    environment:
+      ZOO_MY_ID: 2
+
+  zookeeper-3:
+    <<: *zookeeper-common
+    container_name: zookeeper-3
+    hostname: zookeeper-3
+    environment:
+      ZOO_MY_ID: 3
+
+services:
+  <<: [
+    *zookeeper-cluster,
+    *hadoop-cluster
+  ]
+
+# networks:
+#   default:
+#     ipam:
+#       config:
+#         - subnet: 255.255.255.0

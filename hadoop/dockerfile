@@ -1,0 +1,38 @@
+FROM data-infra:os
+
+# 1. Install Hadoop
+COPY ./resources/hadoop-3.3.1.tar.gz /tmp
+RUN mkdir /opt/hadoop
+RUN tar xvf /tmp/hadoop-3.3.1.tar.gz -C /opt/hadoop 
+RUN ln -sf /opt/hadoop/hadoop-3.3.1 /opt/hadoop/current
+
+ENV HADOOP_HOME=/opt/hadoop/current
+ENV HADOOP_CONF_DIR=${HADOOP_HOME}/etc/hadoop
+ENV HADOOP_PID_DIR=${HADOOP_HOME}/pids
+ENV YARN_HOME=${HADOOP_HOME}
+ENV YARN_CONF_DIR=${HADOOP_CONF_DIR}
+ENV PATH=${HADOOP_HOME}/bin:${HADOOP_HOME}/sbin:${PATH}
+
+COPY ./config/* ${HADOOP_CONF_DIR}/
+
+# 2. Add Service User
+ARG SERVICE_ACCOUNT=hdp-user
+RUN useradd ${SERVICE_ACCOUNT} --create-home --shell $(which bash) --group sudo
+RUN echo "${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT}" | chpasswd
+# RUN echo "${SERVICE_ACCOUNT} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${SERVICE_ACCOUNT}
+RUN echo "${SERVICE_ACCOUNT} ALL=NOPASSWD:/usr/sbin/sshd" > /etc/sudoers.d/${SERVICE_ACCOUNT}
+RUN cp -rvf ~/.ssh /home/${SERVICE_ACCOUNT}/ && chown -hR ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} /home/${SERVICE_ACCOUNT}/.ssh
+
+RUN chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} /opt/hadoop
+RUN mkdir -p /data/hadoop/journalnode /data/hadoop/datanode /data/hadoop/namenode && chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} /data/hadoop
+
+USER ${SERVICE_ACCOUNT}
+
+# RUN mkdir -p /data/hadoop/namenode
+# RUN mkdir -p /data/hadoop/datanode
+# RUN mkdir -p /data/hadoop/journalnode
+
+COPY ./scripts/start-namenode.sh /usr/sbin/
+COPY ./scripts/start-datanode.sh /usr/sbin/
+
+CMD [ "sleep", "inf" ]

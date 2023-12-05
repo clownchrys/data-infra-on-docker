@@ -1,0 +1,51 @@
+FROM ubuntu:focal-20211006
+
+ENV DEVIAN_FRONTEND=noninteractive
+RUN apt update
+
+# 1. Set root password
+RUN echo 'root:root' | chpasswd
+
+# 2. Set timezone
+# RUN apt install -y systemd
+# RUN timedatectl set-timezone Asia/Seoul
+ARG TZ=Asia/Seoul
+RUN apt install -y tzdata
+RUN ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime
+RUN echo ${TZ} > /etc/timezone
+
+# 3. Install JAVA
+RUN apt install -y openjdk-8-jdk && ls ${JAVA_HOME}
+
+ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+ENV PATH=${JAVA_HOME}/bin:${PATH}
+
+# 4. Install essential packages
+RUN apt install -y \
+    sudo \
+    net-tools \
+    iputils-ping \
+    zip unzip \
+    wget curl \
+    vim \
+    git
+
+# 5. Run ssh server
+RUN apt install -y openssh-server openssh-client
+RUN mkdir -p /run/sshd
+
+COPY ./config/ssh/user-specific-config /tmp/
+RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa
+RUN cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+RUN mv /tmp/user-specific-config ~/.ssh/config
+
+# RUN sed -ri 's/^#?PermitRootLogin\s+.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+# RUN sed -ri 's/UsePAM yes/#UsePAM yes/g' /etc/ssh/sshd_config
+COPY ./config/ssh/system-wide-config /etc/ssh/sshd_config
+RUN ssh-keygen -t rsa -N '' -f /etc/ssh/ssh_host_rsa_key -y
+RUN ssh-keygen -t ecdsa -N '' -f /etc/ssh/ssh_host_ecdsa_key -y
+RUN ssh-keygen -t ed25519 -N '' -f /etc/ssh/ssh_host_ed25519_key -y
+
+EXPOSE 22
+COPY ./scripts/docker-entrypoint.sh /docker-entrypoint.sh
+ENTRYPOINT [ "/docker-entrypoint.sh" ]
