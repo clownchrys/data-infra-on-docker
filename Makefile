@@ -1,7 +1,31 @@
 SHELL = /bin/zsh
+ARCH = $(shell arch)
+PROJECT_NAME = data-infra
 
-ARCH := (shell arch)
-PROJECT_NAME := data-infra
+# BINARIES
+HADOOP_VERSION = 3.3.6
+ifneq (${ARCH}, $(filter ${ARCH}, arm64 aarch64))
+	HADOOP_BIN_URI = https://archive.apache.org/dist/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz
+else
+	HADOOP_BIN_URI = https://archive.apache.org/dist/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}-aarch64.tar.gz
+endif
+
+SPARK_VERSION = 3.4.2
+SPARK_BIN_URI = https://dlcdn.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz
+
+HIVE_VERSION = 3.1.2
+HIVE_BIN_URI = https://dlcdn.apache.org/hive/hive-${HIVE_VERSION}/apache-hive-${HIVE_VERSION}-bin.tar.gz
+
+KAFKA_BIN_URI = https://dlcdn.apache.org/kafka/2.6.3/kafka_2.13-2.6.3.tgz
+FILEBEAT_BIN_URI = https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-7.16.2-linux-x86_64.tar.gz
+# MINICONDA = https://repo.anaconda.com/miniconda/Miniconda3-py38_4.10.3-Linux-x86_64.sh
+
+# JARS
+MYSQL_CONNECTOR_JAR_URI = https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.46/mysql-connector-java-5.1.46.jar
+GUAVA_JAR_URI = https://repo1.maven.org/maven2/com/google/guava/guava/27.0-jre/guava-27.0-jre.jar
+
+
+################### TARGETS ###################
 
 # wget (= curl -L -O )
 # -nc, --no-clobber 기존 파일에 다운로드(덮어쓰기) 할 경우 다운로드 건너뛰기
@@ -9,31 +33,29 @@ PROJECT_NAME := data-infra
 # -P: 지정한 디렉토리에 다운로드
 # --no-check-certificate 서버 인증서 검증하지 않음
 
-MYSQL_CONNECTOR = https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.46/mysql-connector-java-5.1.46.jar
-GUAVA = https://repo1.maven.org/maven2/com/google/guava/guava/27.0-jre/guava-27.0-jre.jar
-HADOOP = https://dlcdn.apache.org/hadoop/common/hadoop-3.3.1/hadoop-3.3.1.tar.gz
-HIVE = https://dlcdn.apache.org/hive/hive-3.1.2/apache-hive-3.1.2-bin.tar.gz
-PIG = https://dlcdn.apache.org/pig/pig-0.17.0/pig-0.17.0.tar.gz
-# MINICONDA = https://repo.anaconda.com/miniconda/Miniconda3-py38_4.10.3-Linux-x86_64.sh
-SPARK = https://dlcdn.apache.org/spark/spark-3.1.2/spark-3.1.2-bin-hadoop3.2.tgz
-KAFKA = https://dlcdn.apache.org/kafka/2.6.3/kafka_2.13-2.6.3.tgz
-FILEBEAT = https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-7.16.2-linux-x86_64.tar.gz
-
 .PHONY: download-resources
 download-resources:
-	wget ${HADOOP} -NP ./hadoop/resources
-	# wget {$MYSQL_CONNECTOR,$GUAVA,$HIVE} -NP ./hive/resources
-	# wget $PIG -NP ./pig/resources
-	# wget {$MYSQL_CONNECTOR,$SPARK} -NP ./spark/resources
-	# wget $KAFKA -NP ./kafka/resources
-	# wget $FILEBEAT -NP ./server/resources
+	wget ${HADOOP_BIN_URI} -nc -O ./hadoop/resources/hadoop-${HADOOP_VERSION}.tar.gz || exit 0
+	wget ${SPARK_BIN_URI} -nc -O ./hadoop/resources/spark-${SPARK_VERSION}-bin-hadoop3.tgz || exit 0
+
+	# wget {${MYSQL_CONNECTOR_JAR_URI},${GUAVA_JAR_URI},${HIVE_BIN_URI}} -NP ./hive/resources
+	# wget {${MYSQL_CONNECTOR_JAR_URI},${SPARK_BIN_URI}} -NP ./spark/resources
+	# wget ${KAFKA_BIN_URI} -NP ./kafka/resources
+	# wget ${FILEBEAT_BIN_URI} -NP ./server/resources
+
+# ifeq ($(shell ls ./hadoop/resources/hadoop-${HADOOP_VERSION}.tar.gz &> /dev/null || echo 0 && echo 1), 0)
+# 	wget ${HADOOP_BIN_URI} -NP ./hadoop/resources
+# endif
+# ifeq ($(shell ls ./hadoop/resources/hadoop-${HADOOP_VERSION}-aarch64.tar.gz &> /dev/null || echo 0 && echo 1), 1)
+# 	mv ./hadoop/resources/hadoop-${HADOOP_VERSION}-aarch64.tar.gz ./hadoop/resources/hadoop-${HADOOP_VERSION}.tar.gz
+# endif
 
 .PHONY: build-os
 build-os:
 	docker image build ./os -t ${PROJECT_NAME}:os
 
 .PHONY: up
-up: download-resources build-os
+up: build-os
 	docker compose up -d --build
 
 .PHONY: down
@@ -42,3 +64,7 @@ down:
 
 .PHONY: restart
 restart: down up
+
+.PHONY: log
+log:
+	docker compose logs -tf

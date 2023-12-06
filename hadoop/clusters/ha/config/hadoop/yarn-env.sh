@@ -176,5 +176,5 @@
 # export YARN_CONTAINER_RUNTIME_DOCKER_RUN_OVERRIDE_DISABLE=true
 
 # Customized
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export JAVA_HOME=/usr/lib/jvm/current
 export JAVA_HEAP_MAX=Xmx1000m

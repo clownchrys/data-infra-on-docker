@@ -1,10 +1,13 @@
 FROM data-infra:os
 
+ARG HADOOP_VERSION=3.3.6
+ARG SPARK_VERSION=3.4.2
+
 # 1. Install Hadoop
-COPY ./resources/hadoop-3.3.1.tar.gz /tmp
+COPY ./resources/hadoop-${HADOOP_VERSION}.tar.gz /tmp
 RUN mkdir /opt/hadoop
-RUN tar xvf /tmp/hadoop-3.3.1.tar.gz -C /opt/hadoop 
-RUN ln -sf /opt/hadoop/hadoop-3.3.1 /opt/hadoop/current
+RUN tar xvf /tmp/hadoop-${HADOOP_VERSION}.tar.gz -C /opt/hadoop 
+RUN ln -sf /opt/hadoop/hadoop-${HADOOP_VERSION} /opt/hadoop/current
 
 ENV HADOOP_HOME=/opt/hadoop/current
 ENV HADOOP_CONF_DIR=${HADOOP_HOME}/etc/hadoop
@@ -13,26 +16,48 @@ ENV YARN_HOME=${HADOOP_HOME}
 ENV YARN_CONF_DIR=${HADOOP_CONF_DIR}
 ENV PATH=${HADOOP_HOME}/bin:${HADOOP_HOME}/sbin:${PATH}
 
-COPY ./config/* ${HADOOP_CONF_DIR}/
+# 2. Install Spark
+COPY ./resources/spark-${SPARK_VERSION}-bin-hadoop3.tgz /tmp
+RUN mkdir /opt/spark
+RUN tar xvf /tmp/spark-${SPARK_VERSION}-bin-hadoop3.tgz -C /opt/spark 
+RUN ln -sf /opt/spark/spark-${SPARK_VERSION}-bin-hadoop3 /opt/spark/current
 
-# 2. Add Service User
+ENV SPARK_HOME=/opt/spark/current
+ENV SPARK_CONF_DIR=${SPARK_HOME}/conf
+ENV PATH=${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${PATH}
+
+RUN apt install -y python3-pip
+RUN python3 -m pip install virtualenv
+RUN virtualenv -p python3.8 /data/spark/venv
+RUN /data/spark/venv/bin/pip3 install \
+    findspark \
+    pyhive \
+    delta-spark
+
+# 3. Add Service User
 ARG SERVICE_ACCOUNT=hdp-user
 RUN useradd ${SERVICE_ACCOUNT} --create-home --shell $(which bash) --group sudo
 RUN echo "${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT}" | chpasswd
 # RUN echo "${SERVICE_ACCOUNT} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${SERVICE_ACCOUNT}
 RUN echo "${SERVICE_ACCOUNT} ALL=NOPASSWD:/usr/sbin/sshd" > /etc/sudoers.d/${SERVICE_ACCOUNT}
-RUN cp -rvf ~/.ssh /home/${SERVICE_ACCOUNT}/ && chown -hR ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} /home/${SERVICE_ACCOUNT}/.ssh
+RUN cp -rvf ~/.ssh /home/${SERVICE_ACCOUNT}/ && \
+    chown -hR ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} /home/${SERVICE_ACCOUNT}/.ssh
 
-RUN chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} /opt/hadoop
-RUN mkdir -p /data/hadoop/journalnode /data/hadoop/datanode /data/hadoop/namenode && chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} /data/hadoop
+RUN mkdir -p \
+    /data/hadoop/journalnode \
+    /data/hadoop/datanode \
+    /data/hadoop/namenode
+RUN chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} \
+    /opt/hadoop \
+    /opt/spark \
+    /data/hadoop
 
+# 4. On runtime
 USER ${SERVICE_ACCOUNT}
 
-# RUN mkdir -p /data/hadoop/namenode
-# RUN mkdir -p /data/hadoop/datanode
-# RUN mkdir -p /data/hadoop/journalnode
-
-COPY ./scripts/start-namenode.sh /usr/sbin/
-COPY ./scripts/start-datanode.sh /usr/sbin/
+COPY ./clusters/ha/config/hadoop/* ${HADOOP_CONF_DIR}/
+COPY ./clusters/ha/config/spark/* ${SPARK_CONF_DIR}/
+# COPY ./clusters/ha/config/hive/hive-site.xml ${SPARK_CONF_DIR}/
+COPY ./clusters/ha/scripts/* /usr/sbin/
 
 CMD [ "sleep", "inf" ]

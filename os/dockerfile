@@ -15,9 +15,9 @@ RUN ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime
 RUN echo ${TZ} > /etc/timezone
 
 # 3. Install JAVA
-RUN apt install -y openjdk-8-jdk && ls ${JAVA_HOME}
-
-ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+RUN apt install -y openjdk-8-jdk
+RUN ln -sf $(realpath "$(dirname $(readlink -f $(which java)))/../..") /usr/lib/jvm/current
+ENV JAVA_HOME=/usr/lib/jvm/current
 ENV PATH=${JAVA_HOME}/bin:${PATH}
 
 # 4. Install essential packages

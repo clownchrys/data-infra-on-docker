@@ -18,22 +18,25 @@
 
 <configuration>
 
-    <!-- nn location -->
     <property>
         <name>fs.defaultFS</name>
         <value>hdfs://hdp-cluster</value>
     </property>
 
-<!--    <property>-->
-<!--        <name>fs.hdfs.impl</name>-->
-<!--        <value>org.apache.hadoop.hdfs.DistributedFileSystem</value>-->
-<!--    </property>-->
+    <!--
+    <property>
+       <name>fs.hdfs.impl</name>
+       <value>org.apache.hadoop.hdfs.DistributedFileSystem</value>
+    </property>
+    -->
 
-    <!-- data directories -->
     <property>
         <name>hadoop.tmp.dir</name>
-        <value>/usr/share/hadoop/store/tmp</value>
-        <description>A base for other temporary directories.</description>
+        <value>/data/hadoop/tmp</value>
+        <description>
+            A base for other temporary directories.
+            (default: /usr/share/hadoop/store/tmp)
+        </description>
     </property>
 
     <property>
