@@ -23,6 +23,8 @@ FILEBEAT_BIN_URI = https://artifacts.elastic.co/downloads/beats/filebeat/filebea
 # JARS
 MYSQL_CONNECTOR_JAR_URI = https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.46/mysql-connector-java-5.1.46.jar
 GUAVA_JAR_URI = https://repo1.maven.org/maven2/com/google/guava/guava/27.0-jre/guava-27.0-jre.jar
+DELTA_CORE_JAR_URI = https://repo1.maven.org/maven2/io/delta/delta-core_2.12/2.4.0/delta-core_2.12-2.4.0.jar
+DELTA_STORAGET_JAR_URI = https://repo1.maven.org/maven2/io/delta/delta-storage/2.4.0/delta-storage-2.4.0.jar
 
 
 ################### TARGETS ###################
@@ -37,6 +39,8 @@ GUAVA_JAR_URI = https://repo1.maven.org/maven2/com/google/guava/guava/27.0-jre/g
 download-resources:
 	wget ${HADOOP_BIN_URI} -nc -O ./hadoop/resources/hadoop-${HADOOP_VERSION}.tar.gz || exit 0
 	wget ${SPARK_BIN_URI} -nc -O ./hadoop/resources/spark-${SPARK_VERSION}-bin-hadoop3.tgz || exit 0
+	wget ${DELTA_CORE_JAR_URI} -nc -O ./hadoop/resources/delta-core_2.12-2.4.0.jar || exit 0
+	wget ${DELTA_STORAGET_JAR_URI} -nc -O ./hadoop/resources/delta-storage-2.4.0.jar || exit 0
 
 	# wget {${MYSQL_CONNECTOR_JAR_URI},${GUAVA_JAR_URI},${HIVE_BIN_URI}} -NP ./hive/resources
 	# wget {${MYSQL_CONNECTOR_JAR_URI},${SPARK_BIN_URI}} -NP ./spark/resources

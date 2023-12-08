@@ -1,5 +1,5 @@
 #!/bin/bash
 
 # sudo service ssh start
-echo "Starting OpenBSD Secure Shell server" && sudo /usr/sbin/sshd && \
-echo "Command Execution:" && eval "$*"
+echo "[docker-entrypoint.sh] Starting OpenBSD Secure Shell server" && sudo /usr/sbin/sshd && \
+echo "[docker-entrypoint.sh] Command Execution:" && eval "$*"

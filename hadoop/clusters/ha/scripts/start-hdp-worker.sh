@@ -11,7 +11,7 @@ hdfs --daemon start datanode
 yarn --daemon start nodemanager
 
 # start spark
-start-worker.sh
+# start-worker.sh # Worker process not be requied, because of using yarn as spark master
 
 # logging for container-liveness
 tail -F ${HADOOP_HOME}/logs/*.log

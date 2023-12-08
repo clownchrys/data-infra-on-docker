@@ -39,8 +39,8 @@ fi
 hdfs --daemon start zkfc || exit 1
 
 # start spark
-# echo "[NOT_IMPLEMENTED] SparkApplication"
-start-master.sh
+# start-master.sh # Master process not be requied, because of using yarn as spark master
+hdfs dfs -mkdir -p /spark-logs || exit 1 # spark log directory (ref. spark-defaults.conf)
 
 # logging for container-liveness
 tail -F ${HADOOP_HOME}/logs/*.log

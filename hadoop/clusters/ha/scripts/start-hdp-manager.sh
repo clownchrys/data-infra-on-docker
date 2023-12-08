@@ -14,8 +14,7 @@ mapred --daemon start historyserver || exit 1
 hdfs --daemon start balancer -asService || exit 1
 
 # start sparkhistoryserver (spark)
-# echo "[NOT_IMPLEMENTED] SparkHistoryServer"
-start-history-server.sh
+start-history-server.sh || exit 1
 
 # logging for container-liveness
 tail -F ${HADOOP_HOME}/logs/*.log

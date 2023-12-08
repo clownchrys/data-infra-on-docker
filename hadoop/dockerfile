@@ -26,13 +26,16 @@ ENV SPARK_HOME=/opt/spark/current
 ENV SPARK_CONF_DIR=${SPARK_HOME}/conf
 ENV PATH=${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${PATH}
 
-RUN apt install -y python3-pip
+RUN apt update && apt install -y python3-pip
 RUN python3 -m pip install virtualenv
 RUN virtualenv -p python3.8 /data/spark/venv
 RUN /data/spark/venv/bin/pip3 install \
     findspark \
     pyhive \
     delta-spark
+
+COPY ./resources/delta-core_2.12-2.4.0.jar ${SPARK_HOME}/jars/
+COPY ./resources/delta-storage-2.4.0.jar ${SPARK_HOME}/jars/
 
 # 3. Add Service User
 ARG SERVICE_ACCOUNT=hdp-user

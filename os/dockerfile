@@ -1,27 +1,26 @@
 FROM ubuntu:focal-20211006
 
 ENV DEVIAN_FRONTEND=noninteractive
-RUN apt update
 
 # 1. Set root password
 RUN echo 'root:root' | chpasswd
 
 # 2. Set timezone
-# RUN apt install -y systemd
+# RUN apt update &&  apt install -y systemd
 # RUN timedatectl set-timezone Asia/Seoul
 ARG TZ=Asia/Seoul
-RUN apt install -y tzdata
+RUN apt update && apt install -y tzdata
 RUN ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime
 RUN echo ${TZ} > /etc/timezone
 
 # 3. Install JAVA
-RUN apt install -y openjdk-8-jdk
+RUN apt update && apt install -y openjdk-8-jdk
 RUN ln -sf $(realpath "$(dirname $(readlink -f $(which java)))/../..") /usr/lib/jvm/current
 ENV JAVA_HOME=/usr/lib/jvm/current
 ENV PATH=${JAVA_HOME}/bin:${PATH}
 
 # 4. Install essential packages
-RUN apt install -y \
+RUN apt update && apt install -y \
     sudo \
     net-tools \
     iputils-ping \
@@ -31,7 +30,7 @@ RUN apt install -y \
     git
 
 # 5. Run ssh server
-RUN apt install -y openssh-server openssh-client
+RUN apt update && apt install -y openssh-server openssh-client
 RUN mkdir -p /run/sshd
 
 COPY ./config/ssh/user-specific-config /tmp/
