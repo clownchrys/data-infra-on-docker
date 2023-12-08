@@ -1,7 +1,7 @@
 version: '3'
 
 # Hadoop Cluster
-x-hadoop:
+x-hadoop-variables:
   common: &hadoop-common
     image: data-infra:hadoop
     build:
@@ -19,7 +19,6 @@ x-hadoop:
     command: ["start-hdp-worker.sh"]
 
 x-hadoop-cluster: &hadoop-cluster
-
   hdp-master-1:
     <<: [ *hadoop-common, *hadoop-master ]
     container_name: hdp-master-1
@@ -63,7 +62,7 @@ x-hadoop-cluster: &hadoop-cluster
     hostname: hdp-worker-3
 
 # Zookeeper Cluster
-x-zookeeper:
+x-zookeeper-variables:
   common: &zookeeper-common
     image: zookeeper:3.8.3
     restart: on-failure
@@ -79,7 +78,6 @@ x-zookeeper:
     ZOO_DATA_DIR: /data
 
 x-zookeeper-cluster: &zookeeper-cluster
-
   zk-1:
     <<: *zookeeper-common
     container_name: zk-1
@@ -104,14 +102,19 @@ x-zookeeper-cluster: &zookeeper-cluster
       ZOO_MY_ID: 3
       <<: *zookeeper-environment
 
-# Hive Server
-x-hive: &hive-server
-  container_name: hive
-  hostname: hive
-  image: data-infra:hive
-  build:
-    context: hive
-    dockerfile: dockerfile
+# Hive cluster
+x-hive-cluster: &hive-cluster
+  hive-1:
+    <<: *hadoop-common
+    container_name: hive-1
+    hostname: hive-1
+    command: ["start-hdp-hive.sh"]
+    ports:
+      # - "9083:9083" # metastore
+      # - "10000:10000" # hiverserver2
+      - "10002:10002" # hiveserver2 web-ui
+    depends_on:
+      - mariadb
 
 
 # SERVICES
@@ -119,8 +122,23 @@ services:
   <<: [
     *zookeeper-cluster,
     *hadoop-cluster,
-    # *hive-server,
+    *hive-cluster,
   ]
+  # Database
+  mariadb:
+    container_name: mariadb
+    hostname: mariadb
+    image: mariadb:11.1
+    environment:
+      - MARIADB_ROOT_PASSWORD=root
+    volumes:
+      - ./mariadb/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD", "mariadb-admin", "-uroot", "-proot", "ping" ]
+      interval: 5s
+      retries: 5
+    ports:
+      - "3306:3306"
 
 # networks:
 #   default:

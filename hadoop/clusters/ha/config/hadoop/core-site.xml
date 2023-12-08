@@ -22,6 +22,14 @@
         <name>fs.defaultFS</name>
         <value>hdfs://hdp-cluster</value>
     </property>
+    <property>
+        <name>hadoop.proxyuser.hadoop.groups</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>hadoop.proxyuser.hadoop.hosts</name>
+        <value>*</value>
+    </property>
 
     <!--
     <property>
