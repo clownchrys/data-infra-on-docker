@@ -2,8 +2,11 @@
 <configuration>
     <property>
         <name>javax.jdo.option.ConnectionURL</name>
-        <value>jdbc:mysql://mariadb:3306/metastore?createDatabaseIfNotExist=true</value>
-        <description>JDBC connect string for a JDBC metastore</description>
+        <value>jdbc:mysql://mariadb:3306/metastore?createDatabaseIfNotExist=true&amp;useSSL=false</value>
+        <description>
+            JDBC connect string for a JDBC metastore
+            &amp;useUnicode=true&amp;characterEncoding=utf8&amp;zeroDateTimeBehavior=convertToNull&amp;defaultFetchSize=1000
+        </description>
     </property>
     <property>
         <name>javax.jdo.option.ConnectionDriverName</name>
