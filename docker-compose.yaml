@@ -1,66 +1,5 @@
 version: '3'
 
-# Hadoop Cluster
-x-hadoop-variables:
-  common: &hadoop-common
-    image: data-infra:hadoop
-    build:
-      context: hadoop
-      dockerfile: dockerfile
-  master: &hadoop-master
-    depends_on:
-      - zk-1
-      - zk-2
-      - zk-3
-      - hdp-worker-1
-      - hdp-worker-2
-      - hdp-worker-3
-  worker: &hadoop-worker
-    command: ["start-hdp-worker.sh"]
-
-x-hadoop-cluster: &hadoop-cluster
-  hdp-master-1:
-    <<: [ *hadoop-common, *hadoop-master ]
-    container_name: hdp-master-1
-    hostname: hdp-master-1
-    command: ["start-hdp-master.sh", "active"]
-    ports:
-      - "9870:9870" # nn web-ui
-      - "8088:8088" # yarn rm web-ui
-      # - "9868:9868" # secondary nn web-ui (for single nn)
-
-  hdp-master-2:
-    <<: [ *hadoop-common, *hadoop-master ]
-    container_name: hdp-master-2
-    hostname: hdp-master-2
-    command: ["start-hdp-master.sh", "standby"]
-    ports:
-      - "9871:9870" # nn web-ui
-      - "8089:8088" # yarn rm web-ui
-
-  hdp-master-3:
-    <<: [ *hadoop-common, *hadoop-master ]
-    container_name: hdp-master-3
-    hostname: hdp-master-3
-    command: ["start-hdp-manager.sh"]
-    ports:
-      - "19888:19888" # job history server web-ui
-
-  hdp-worker-1:
-    <<: [ *hadoop-common, *hadoop-worker ]
-    container_name: hdp-worker-1
-    hostname: hdp-worker-1
-
-  hdp-worker-2:
-    <<: [ *hadoop-common, *hadoop-worker ]
-    container_name: hdp-worker-2
-    hostname: hdp-worker-2
-
-  hdp-worker-3:
-    <<: [ *hadoop-common, *hadoop-worker ]
-    container_name: hdp-worker-3
-    hostname: hdp-worker-3
-
 # Zookeeper Cluster
 x-zookeeper-variables:
   common: &zookeeper-common
@@ -102,13 +41,87 @@ x-zookeeper-cluster: &zookeeper-cluster
       ZOO_MY_ID: 3
       <<: *zookeeper-environment
 
+
+# Hadoop Cluster
+x-hadoop-spark-variables:
+  common: &hadoop-spark-common
+    image: data-infra:hadoop-spark
+    build:
+      context: hadoop
+      dockerfile: dockerfile
+      args:
+        BUILD_SPARK: true
+  master: &hadoop-spark-master
+    depends_on:
+      - zk-1
+      - zk-2
+      - zk-3
+      - hdp-worker-1
+      - hdp-worker-2
+      - hdp-worker-3
+  worker: &hadoop-spark-worker
+    command: ["init-hadoop-spark-worker.sh"]
+
+x-hadoop-spark-cluster: &hadoop-spark-cluster
+  hdp-master-1:
+    <<: [ *hadoop-spark-common, *hadoop-spark-master ]
+    container_name: hdp-master-1
+    hostname: hdp-master-1
+    command: ["init-hadoop-spark-master.sh", "active"]
+    ports:
+      - "9870:9870" # nn web-ui
+      - "8088:8088" # yarn rm web-ui
+      # - "9868:9868" # secondary nn web-ui (for single nn)
+
+  hdp-master-2:
+    <<: [ *hadoop-spark-common, *hadoop-spark-master ]
+    container_name: hdp-master-2
+    hostname: hdp-master-2
+    command: ["init-hadoop-spark-master.sh", "standby"]
+    ports:
+      - "9871:9870" # nn web-ui
+      - "8089:8088" # yarn rm web-ui
+
+  hdp-master-3:
+    <<: [ *hadoop-spark-common, *hadoop-spark-master ]
+    container_name: hdp-master-3
+    hostname: hdp-master-3
+    command: ["init-hadoop-spark-manager.sh"]
+    ports:
+      - "19888:19888" # job history server web-ui
+
+  hdp-worker-1:
+    <<: [ *hadoop-spark-common, *hadoop-spark-worker ]
+    container_name: hdp-worker-1
+    hostname: hdp-worker-1
+
+  hdp-worker-2:
+    <<: [ *hadoop-spark-common, *hadoop-spark-worker ]
+    container_name: hdp-worker-2
+    hostname: hdp-worker-2
+
+  hdp-worker-3:
+    <<: [ *hadoop-spark-common, *hadoop-spark-worker ]
+    container_name: hdp-worker-3
+    hostname: hdp-worker-3
+
+
 # Hive cluster
+x-hive-variables:
+  common: &hive-common
+    image: data-infra:hive
+    build:
+      context: hadoop
+      dockerfile: dockerfile
+      args:
+        BUILD_HIVE: true
+
 x-hive-cluster: &hive-cluster
   hive-1:
-    <<: *hadoop-common
+    <<: *hive-common
     container_name: hive-1
     hostname: hive-1
-    command: ["start-hdp-hive.sh"]
+    command: ["init-hive.sh"]
     ports:
       # - "9083:9083" # metastore
       # - "10000:10000" # hiverserver2
@@ -121,7 +134,7 @@ x-hive-cluster: &hive-cluster
 services:
   <<: [
     *zookeeper-cluster,
-    *hadoop-cluster,
+    *hadoop-spark-cluster,
     *hive-cluster,
   ]
   # Database
@@ -130,7 +143,7 @@ services:
     hostname: mariadb
     image: mariadb:11.1
     environment:
-      - MARIADB_ROOT_PASSWORD=root
+      MARIADB_ROOT_PASSWORD: root
     volumes:
       - ./mariadb/init:/docker-entrypoint-initdb.d
     healthcheck:

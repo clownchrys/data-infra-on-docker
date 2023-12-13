@@ -5,7 +5,11 @@
 # vdisk: os 100G, data 500G
 
 # init hive metastore
-schematool -initSchema -dbType mysql || exit 1
+while ! schematool -initSchema -dbType mysql;
+do
+    echo "waiting 10s to initialize metastore schema..."
+    sleep 10
+done
 
 while ! hdfs dfs -ls /;
 do

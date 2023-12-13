@@ -82,7 +82,7 @@ export JAVA_HOME=/usr/lib/jvm/current
 export HADOOP_HOME=/opt/hadoop/current
 export HADOOP_CONF_DIR=${HADOOP_HOME}/etc/hadoop
 export SPARK_HOME=/opt/spark/current
-export SPARK_DIST_CLASSPATH=$(/opt/hadoop/current/bin/hadoop classpath):/opt/spark/current/jars/*
+export SPARK_DIST_CLASSPATH=$(hadoop classpath):/opt/spark/current/jars/*
 export PYTHONPATH=$(ZIPS=("$SPARK_HOME"/python/lib/*.zip); IFS=:; echo "${ZIPS[*]}"):$PYTHONPATH
 export PYSPARK_PYTHON=/data/spark/venv/bin/python
 export PYSPARK_DRIVER_PYTHON=/data/spark/venv/bin/python

@@ -431,4 +431,6 @@ export HADOOP_OS_TYPE=${HADOOP_OS_TYPE:-$(uname -s)}
 
 # Customization
 export JAVA_HOME=/usr/lib/jvm/current
-export HADOOP_SECURE_PID_DIR=/usr/share/hadoop/pids
+export HADOOP_PID_DIR=${HADOOP_HOME}/pids
+export HADOOP_SECURE_PID_DIR=${HADOOP_PID_DIR}
+export HADOOP_CLASSPATH=$($HADOOP_HOME/bin/hadoop classpath):${HADOOP_HOME}/share/hadoop/tools/lib/*

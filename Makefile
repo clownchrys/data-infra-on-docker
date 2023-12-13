@@ -13,7 +13,7 @@ endif
 SPARK_VERSION = 3.4.2
 SPARK_BIN_URI = https://dlcdn.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz
 
-HIVE_VERSION = 3.1.3
+HIVE_VERSION = 3.1.2
 HIVE_BIN_URI = https://dlcdn.apache.org/hive/hive-${HIVE_VERSION}/apache-hive-${HIVE_VERSION}-bin.tar.gz
 
 KAFKA_BIN_URI = https://dlcdn.apache.org/kafka/2.6.3/kafka_2.13-2.6.3.tgz
@@ -21,8 +21,6 @@ FILEBEAT_BIN_URI = https://artifacts.elastic.co/downloads/beats/filebeat/filebea
 # MINICONDA = https://repo.anaconda.com/miniconda/Miniconda3-py38_4.10.3-Linux-x86_64.sh
 
 # JARS
-DELTA_CORE_JAR_URI = https://repo1.maven.org/maven2/io/delta/delta-core_2.12/2.4.0/delta-core_2.12-2.4.0.jar
-DELTA_STORAGET_JAR_URI = https://repo1.maven.org/maven2/io/delta/delta-storage/2.4.0/delta-storage-2.4.0.jar
 MYSQL_CONNECTOR_JAR_URI = https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.46/mysql-connector-java-5.1.46.jar
 GUAVA_JAR_URI = https://repo1.maven.org/maven2/com/google/guava/guava/27.0-jre/guava-27.0-jre.jar
 
@@ -39,12 +37,8 @@ GUAVA_JAR_URI = https://repo1.maven.org/maven2/com/google/guava/guava/27.0-jre/g
 download-resources:
 	wget ${HADOOP_BIN_URI} -nc -O ./hadoop/resources/hadoop-${HADOOP_VERSION}.tar.gz || exit 0
 	wget ${SPARK_BIN_URI} -nc -O ./hadoop/resources/spark-${SPARK_VERSION}-bin-hadoop3.tgz || exit 0
-	wget ${HIVE_BIN_URI} -nc -O ./hadoop/resources/apache-hive-${HIVE_VERSION}-bin.tar.gz || exit 0
-	wget ${DELTA_CORE_JAR_URI} -nc -O ./hadoop/resources/delta-core_2.12-2.4.0.jar || exit 0
-	wget ${DELTA_STORAGET_JAR_URI} -nc -O ./hadoop/resources/delta-storage-2.4.0.jar || exit 0
-	wget ${MYSQL_CONNECTOR_JAR_URI} -nc -O ./hadoop/resources/mysql-connector-java-5.1.46.jar || exit 0
-	wget ${GUAVA_JAR_URI} -nc -O ./hadoop/resources/guava-27.0-jre.jar || exit 0
 
+	# wget {${MYSQL_CONNECTOR_JAR_URI},${GUAVA_JAR_URI},${HIVE_BIN_URI}} -NP ./hive/resources
 	# wget {${MYSQL_CONNECTOR_JAR_URI},${SPARK_BIN_URI}} -NP ./spark/resources
 	# wget ${KAFKA_BIN_URI} -NP ./kafka/resources
 	# wget ${FILEBEAT_BIN_URI} -NP ./server/resources

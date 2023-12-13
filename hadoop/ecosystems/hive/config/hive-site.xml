@@ -51,4 +51,9 @@
         <name>hive.cli.print.current.db</name>
         <value>true</value>
     </property>
+    <!-- <property>
+        <name>hive.execution.engine</name>
+        <value>tez</value>
+        <description>Chooses execution engine: mr, tez, spark</description>
+    </property> -->
 </configuration>

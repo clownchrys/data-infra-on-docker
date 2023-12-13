@@ -28,3 +28,27 @@ yarn rmadmin -transitionToActive rm2 --forcemanual
 hdfs haadmin -getServiceState nn1
 hdfs haadmin -transitionToActive nn2 --forcemanual
 ```
+
+# example. reading torch tensor from HDFS
+``` bash
+apt install python3.8-venv
+python3 -m venv ~/venv
+source ~/venv/bin/activate
+
+pip install torch numpy pydoop --trusted-host download.pytorch.org --index-url https://download.pytorch.org/whl/cpu
+
+python -c 'import torch; tensor=torch.rand(10, 10); torch.save(tensor, "tensor.pt")'
+hdfs dfs -copyFromLocal tensor.pt /tmp/tensor.pt
+python -c 'import torch; from pydoop import hdfs; client = hdfs.hdfs("hdp-cluster", 8020); f = hdfs.open_file("/tmp/tensor.pt"); tensor=torch.load(f); print(tensor); f.close(); client.close()'
+```
+
+# example. read delta-table from hive (without spark driver)
+``` bash
+apt install python3.8-venv
+python3 -m venv ~/venv
+source ~/venv/bin/activate
+
+pip install pyhive thrift thrift_sasl
+
+python -c 'from pyhive import hive; conn=hive.connect("hive-1", 10000); cursor=conn.cursor(); cursor.execute("show databases"); print(cursor.fetchall()); cursor.close(); conn.close()'
+```
