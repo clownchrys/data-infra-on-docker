@@ -1,0 +1,43 @@
+ARG SERVICE_ACCOUNT=kafka-user
+
+# Service Account
+FROM data-infra:os AS build-service-account
+ARG SERVICE_ACCOUNT
+
+RUN useradd ${SERVICE_ACCOUNT} --create-home --shell $(which bash) --group sudo
+RUN echo "${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT}" | chpasswd
+# RUN echo "${SERVICE_ACCOUNT} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${SERVICE_ACCOUNT}
+RUN echo "${SERVICE_ACCOUNT} ALL=NOPASSWD:/usr/sbin/sshd" > /etc/sudoers.d/${SERVICE_ACCOUNT}
+RUN cp -rvf ~/.ssh /home/${SERVICE_ACCOUNT}/ && \
+    chown -hR ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} /home/${SERVICE_ACCOUNT}/.ssh
+
+
+# Build Kafka
+FROM build-service-account AS build-kafka-with-zookeeper
+ARG KAFKA_VERSION=2.7.2
+ARG KAFKA_SCALA_VERSION=2.13
+ARG BASE_DIR=/opt/kafka
+
+COPY ./resources/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION}.tgz /tmp
+RUN mkdir ${BASE_DIR} && \
+    tar xvf /tmp/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION}.tgz -C ${BASE_DIR} && \
+    ln -sf ${BASE_DIR}/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION} ${BASE_DIR}/current
+
+ENV KAFKA_HOME=${BASE_DIR}/current
+ENV KAFKA_CONF_DIR=${KAFKA_HOME}/config
+ENV PATH=${KAFKA_HOME}/bin:${PATH}
+
+# COPY CONFIG
+
+ARG SERVICE_ACCOUNT
+RUN chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} ${BASE_DIR}
+FROM build-kafka-with-zookeeper AS build-kafka
+
+
+# Runtime
+FROM build-kafka AS runtime
+
+ARG SERVICE_ACCOUNT
+USER ${SERVICE_ACCOUNT}
+CMD [ "sleep", "inf" ]
+#CMD [ "kafka-server-start.sh", "${KAFKA_CONF_DIR}/server.properties" ]

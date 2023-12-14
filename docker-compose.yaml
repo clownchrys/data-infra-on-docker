@@ -134,8 +134,8 @@ x-hive-cluster: &hive-cluster
 services:
   <<: [
     *zookeeper-cluster,
-    *hadoop-spark-cluster,
-    *hive-cluster,
+    # *hadoop-spark-cluster,
+    # *hive-cluster,
   ]
   # Database
   mariadb:
@@ -152,6 +152,18 @@ services:
       retries: 5
     ports:
       - "3306:3306"
+  kafka-1:
+    container_name: kafka-1
+    hostname: kafka-1
+    image: data-infra:kafka
+    build:
+      context: kafka
+      dockerfile: dockerfile
+    depends_on:
+      - zk-1
+      - zk-2
+      - zk-3
+
 
 # networks:
 #   default:
