@@ -16,7 +16,7 @@ RUN cp -rvf ~/.ssh /home/${SERVICE_ACCOUNT}/ && \
     chown -hR ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} /home/${SERVICE_ACCOUNT}/.ssh
 
 
-# Hadoop
+# Build Hadoop
 FROM build-service-account AS build-hadoop
 ARG HADOOP_VERSION=3.3.6
 
@@ -47,7 +47,7 @@ RUN chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} \
     /data/hadoop
 
 
-# Spark
+# Build Spark
 FROM build-hadoop AS build-spark-false
 FROM build-hadoop AS build-spark-true
 ARG SPARK_VERSION=3.4.2
@@ -81,7 +81,7 @@ RUN chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} /opt/spark
 FROM build-spark-${BUILD_SPARK} as build-spark
 
 
-# Hive
+# Build Hive
 FROM build-spark AS build-hive-false
 FROM build-spark AS build-hive-true
 ARG HIVE_VERSION=3.1.3
