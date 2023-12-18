@@ -50,6 +50,7 @@ x-hadoop-spark-variables:
       context: hadoop
       dockerfile: dockerfile
       args:
+        OPTIMIZE_HADOOP: true
         BUILD_SPARK: true
   master: &hadoop-spark-master
     depends_on:
@@ -134,8 +135,8 @@ x-hive-cluster: &hive-cluster
 services:
   <<: [
     *zookeeper-cluster,
-    # *hadoop-spark-cluster,
-    # *hive-cluster,
+    *hadoop-spark-cluster,
+    *hive-cluster,
   ]
   # Database
   mariadb:
