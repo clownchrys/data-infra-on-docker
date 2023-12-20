@@ -1,10 +1,19 @@
 version: '3'
 
-# Zookeeper Cluster
+
+#################################
+##          Zookeeper          ##
+#################################
+
+
 x-zookeeper-variables:
   common: &zookeeper-common
     image: zookeeper:3.8.3
     restart: on-failure
+    healthcheck:
+      test: [ "CMD", "zkServer.sh", "status" ]
+      interval: 10s
+      retries: 5
   environment: &zookeeper-environment # https://hub.docker.com/_/zookeeper
     ZOO_PORT: 2181
     ZOO_SERVERS: >
@@ -42,7 +51,11 @@ x-zookeeper-cluster: &zookeeper-cluster
       <<: *zookeeper-environment
 
 
-# Hadoop Cluster
+####################################
+##          Hadoop-Spark          ##
+####################################
+
+
 x-hadoop-spark-variables:
   common: &hadoop-spark-common
     image: data-infra:hadoop-spark
@@ -95,19 +108,21 @@ x-hadoop-spark-cluster: &hadoop-spark-cluster
     <<: [ *hadoop-spark-common, *hadoop-spark-worker ]
     container_name: hdp-worker-1
     hostname: hdp-worker-1
-
   hdp-worker-2:
     <<: [ *hadoop-spark-common, *hadoop-spark-worker ]
     container_name: hdp-worker-2
     hostname: hdp-worker-2
-
   hdp-worker-3:
     <<: [ *hadoop-spark-common, *hadoop-spark-worker ]
     container_name: hdp-worker-3
     hostname: hdp-worker-3
 
 
-# Hive cluster
+############################
+##          Hive          ##
+############################
+
+
 x-hive-variables:
   common: &hive-common
     image: data-infra:hive
@@ -127,16 +142,59 @@ x-hive-cluster: &hive-cluster
       # - "9083:9083" # metastore
       # - "10000:10000" # hiverserver2
       - "10002:10002" # hiveserver2 web-ui
+    expose:
+      - 9083 # metastore
+      - 10000 # hiveserver2
     depends_on:
-      - mariadb
+      mariadb: {"condition": "service_healthy"}
 
 
-# SERVICES
+#############################
+##          Kafka          ##
+#############################
+
+
+x-kafka-variables: 
+  common: &kafka-common
+    image: data-infra:kafka
+    build:
+      context: kafka
+      dockerfile: dockerfile
+    environment:
+      ZOOKEEPER_CONNECT: zk-1:2181,zk-2:2181,zk-3:2181
+    depends_on:
+      zk-1: {"condition": "service_healthy"}
+      zk-2: {"condition": "service_healthy"}
+      zk-3: {"condition": "service_healthy"}
+    expose:
+      - 9092
+
+x-kafka-cluster: &kafka-cluster
+  kafka-1:
+    <<: *kafka-common
+    container_name: kafka-1
+    hostname: kafka-1
+  kafka-2:
+    <<: *kafka-common
+    container_name: kafka-2
+    hostname: kafka-2
+  kafka-3:
+    <<: *kafka-common
+    container_name: kafka-3
+    hostname: kafka-3
+
+
+################################
+##          Services          ##
+################################
+
+
 services:
   <<: [
     *zookeeper-cluster,
     *hadoop-spark-cluster,
     *hive-cluster,
+    *kafka-cluster,
   ]
   # Database
   mariadb:
@@ -153,17 +211,6 @@ services:
       retries: 5
     ports:
       - "3306:3306"
-  kafka-1:
-    container_name: kafka-1
-    hostname: kafka-1
-    image: data-infra:kafka
-    build:
-      context: kafka
-      dockerfile: dockerfile
-    depends_on:
-      - zk-1
-      - zk-2
-      - zk-3
 
 
 # networks:
