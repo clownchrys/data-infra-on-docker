@@ -1,6 +1,6 @@
 # Setup
 ``` bash
-make download-resources
+make build-assets
 make restart
 ```
 
@@ -17,7 +17,7 @@ USER ${SERVICE_ACCOUNT}
 
 # Yarn DistributedShell Application
 ``` bash
-DISTRIBUTED_SHELL=$(ls $HADOOP_HOME/share/hadoop/yarn/*distributedshell*.jar | sort -r | head -n 1); yarn jar $DISTRIBUTED_SHELL -jar $DISTRIBUTED_SHELL -shell_command ls -shell_args '-al' -container_resources memory-mb=512,vcores=1
+DISTRIBUTED_SHELL=$(ls $HADOOP_HOME/share/hadoop/yarn/*distributedshell*.jar | sort -r | head -n 1); yarn jar $DISTRIBUTED_SHELL -jar $DISTRIBUTED_SHELL -shell_command ls -shell_args '-al' -container_assets memory-mb=512,vcores=1
 ```
 
 # Check ServiceState

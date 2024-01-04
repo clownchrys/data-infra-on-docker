@@ -28,7 +28,7 @@ ARG KAFKA_VERSION=2.7.2
 ARG KAFKA_SCALA_VERSION=2.13
 ARG BASE_DIR=/opt/kafka
 
-COPY ./resources/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION}.tgz /tmp
+COPY ./assets/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION}.tgz /tmp
 RUN mkdir ${BASE_DIR} && \
     tar xvf /tmp/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION}.tgz -C ${BASE_DIR} && \
     ln -sf ${BASE_DIR}/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION} ${BASE_DIR}/current
