@@ -5,8 +5,8 @@
 # vdisk: os 100G, data 500G
 
 # init hive metastore
-while ! hive --service schematool -dbType mysql -initSchema;
-# When schema upgrade: hive --service schematool -dbType mysql -upgradeSchema
+while ! hive --service schemaTool -dbType mysql -initSchema;
+# When schema upgrade: hive --service schemaTool -dbType mysql -upgradeSchema
 do
     echo "waiting 10s to initialize metastore schema..."
     sleep 10

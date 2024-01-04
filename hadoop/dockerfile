@@ -92,12 +92,15 @@ FROM optimize-hadoop AS build-spark-false
 FROM optimize-hadoop AS build-spark-true
 
 ARG SPARK_VERSION=3.4.2
+ARG SPARK_HADOOP_VERSION=3
+# ARG SPARK_VERSION=3.1.2
+# ARG SPARK_HADOOP_VERSION=3.2
 ARG BASE_DIR=/opt/spark
 
-COPY ./resources/spark-${SPARK_VERSION}-bin-hadoop3.tgz /tmp
+COPY ./resources/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}.tgz /tmp
 RUN mkdir ${BASE_DIR}
-RUN tar xvf /tmp/spark-${SPARK_VERSION}-bin-hadoop3.tgz -C ${BASE_DIR} 
-RUN ln -sf ${BASE_DIR}/spark-${SPARK_VERSION}-bin-hadoop3 ${BASE_DIR}/current
+RUN tar xvf /tmp/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}.tgz -C ${BASE_DIR} 
+RUN ln -sf ${BASE_DIR}/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION} ${BASE_DIR}/current
 
 RUN apt update && apt install -y python3-pip
 RUN python3 -m pip install virtualenv
@@ -115,6 +118,9 @@ ENV PATH=${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${PATH}
 
 COPY ./resources/delta-core_2.12-2.4.0.jar ${SPARK_HOME}/jars/
 COPY ./resources/delta-storage-2.4.0.jar ${SPARK_HOME}/jars/
+# COPY ./resources/spark-mssql-connector_2.12-1.2.0.jar ${SPARK_HOME}/jars/
+COPY ./resources/spark-mssql-connector_2.12-1.4.0-BETA.jar ${SPARK_HOME}/jars/
+COPY ./resources/mssql-jdbc-12.4.2.jre8.jar ${SPARK_HOME}/jars/
 COPY ./ecosystems/spark/config/* ${SPARK_CONF_DIR}/
 COPY ./ecosystems/hive/config/hive-site.xml ${SPARK_CONF_DIR}/
 

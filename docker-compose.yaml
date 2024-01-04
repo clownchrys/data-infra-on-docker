@@ -194,7 +194,7 @@ services:
     *zookeeper-cluster,
     *hadoop-spark-cluster,
     *hive-cluster,
-    *kafka-cluster,
+    # *kafka-cluster,
   ]
   # Database
   mariadb:
@@ -211,6 +211,16 @@ services:
       retries: 5
     ports:
       - "3306:3306"
+  sqlserver:
+    container_name: sqlserver
+    hostname: sqlserver
+    image: mcr.microsoft.com/mssql/server:2019-CU20-ubuntu-20.04
+    environment:
+      ACCEPT_EULA: Y
+      MSSQL_SA_PASSWORD: SA_password!
+      MSSQL_PID: Enterprise
+    ports:
+      - "1433:1433"
 
 
 # networks:

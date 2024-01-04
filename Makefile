@@ -10,8 +10,11 @@ else
 	HADOOP_BIN_URI = https://archive.apache.org/dist/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}-aarch64.tar.gz
 endif
 
-SPARK_VERSION = 3.4.2
-SPARK_BIN_URI = https://dlcdn.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz
+#SPARK_VERSION = 3.4.2
+# SPARK_BIN_URI = https://dlcdn.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz
+SPARK_VERSION = 3.1.2
+SPARK_HADOOP_VERSION = 3.2
+SPARK_BIN_URI = https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}.tgz
 
 HIVE_VERSION = 3.1.3
 HIVE_BIN_URI = https://dlcdn.apache.org/hive/hive-${HIVE_VERSION}/apache-hive-${HIVE_VERSION}-bin.tar.gz
@@ -25,7 +28,10 @@ FILEBEAT_BIN_URI = https://artifacts.elastic.co/downloads/beats/filebeat/filebea
 # MINICONDA = https://repo.anaconda.com/miniconda/Miniconda3-py38_4.10.3-Linux-x86_64.sh
 
 # JARS
-MYSQL_CONNECTOR_JAR_URI = https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.46/mysql-connector-java-5.1.46.jar
+HIVE_MYSQL_CONNECTOR_URI = https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.46/mysql-connector-java-5.1.46.jar
+#SPARK_MSSQL_CONNECTOR_URI = https://repo1.maven.org/maven2/com/microsoft/azure/spark-mssql-connector_2.12/1.2.0/spark-mssql-connector_2.12-1.2.0.jar
+SPARK_MSSQL_CONNECTOR_URI = https://github.com/microsoft/sql-spark-connector/releases/download/v1.4.0/spark-mssql-connector_2.12-1.4.0-BETA.jar
+SPARK_MSSQL_JDBC_CONNECTOR_URI = https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.4.2.jre8/mssql-jdbc-12.4.2.jre8.jar
 GUAVA_JAR_URI = https://repo1.maven.org/maven2/com/google/guava/guava/27.0-jre/guava-27.0-jre.jar
 DELTA_CORE_JAR_URI = https://repo1.maven.org/maven2/io/delta/delta-core_2.12/2.4.0/delta-core_2.12-2.4.0.jar
 DELTA_STORAGE_JAR_URI = https://repo1.maven.org/maven2/io/delta/delta-storage/2.4.0/delta-storage-2.4.0.jar
@@ -38,22 +44,24 @@ DELTA_STORAGE_JAR_URI = https://repo1.maven.org/maven2/io/delta/delta-storage/2.
 # -P: 지정한 디렉토리에 다운로드
 # --no-check-certificate 서버 인증서 검증하지 않음
 
-.PHONY: download-resources
-download-resources:
+.PHONY: build-resources
+build-resources:
 	mkdir -p ./hadoop/resources
 	wget ${HADOOP_BIN_URI} -nc -O ./hadoop/resources/hadoop-${HADOOP_VERSION}.tar.gz || exit 0
-	wget ${SPARK_BIN_URI} -nc -O ./hadoop/resources/spark-${SPARK_VERSION}-bin-hadoop3.tgz || exit 0
-	wget ${HIVE_BIN_URI} -nc -O ./hadoop/resources/apache-hive-${HIVE_VERSION}-bin.tar.gz || exit 0
-	wget ${MYSQL_CONNECTOR_JAR_URI} -nc -O ./hadoop/resources/mysql-connector-java-5.1.46.jar || exit 0
-	wget ${GUAVA_JAR_URI} -nc -O ./hadoop/resources/guava-27.0-jre.jar || exit 0
-	wget ${DELTA_CORE_JAR_URI} -nc -O ./hadoop/resources/delta-core_2.12-2.4.0.jar || exit 0
-	wget ${DELTA_STORAGE_JAR_URI} -nc -O ./hadoop/resources/delta-storage-2.4.0.jar || exit 0
+	wget ${SPARK_BIN_URI} -nc -O ./hadoop/resources/$(shell basename ${SPARK_BIN_URI}) || exit 0
+	wget ${HIVE_BIN_URI} -nc -O ./hadoop/resources/$(shell basename ${HIVE_BIN_URI}) || exit 0
+	wget ${HIVE_MYSQL_CONNECTOR_URI} -nc -O ./hadoop/resources/$(shell basename ${HIVE_MYSQL_CONNECTOR_URI}) || exit 0
+	wget ${SPARK_MSSQL_CONNECTOR_URI} -nc -O ./hadoop/resources/$(shell basename ${SPARK_MSSQL_CONNECTOR_URI}) || exit 0
+	wget ${SPARK_MSSQL_JDBC_CONNECTOR_URI} -nc -O ./hadoop/resources/$(shell basename ${SPARK_MSSQL_JDBC_CONNECTOR_URI}) || exit 0
+	wget ${GUAVA_JAR_URI} -nc -O ./hadoop/resources/$(shell basename ${GUAVA_JAR_URI}) || exit 0
+	wget ${DELTA_CORE_JAR_URI} -nc -O ./hadoop/resources/$(shell basename ${DELTA_CORE_JAR_URI}) || exit 0
+	wget ${DELTA_STORAGE_JAR_URI} -nc -O ./hadoop/resources/$(shell basename ${DELTA_STORAGE_JAR_URI}) || exit 0
 
 	mkdir -p ./kafka/resources
-	wget ${KAFKA_BIN_URI} -nc -O ./kafka/resources/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION}.tgz || exit 0
+	wget ${KAFKA_BIN_URI} -nc -O ./kafka/resources/$(shell basename ${KAFKA_BIN_URI}) || exit 0
 
-	# wget {${MYSQL_CONNECTOR_JAR_URI},${GUAVA_JAR_URI},${HIVE_BIN_URI}} -NP ./hive/resources
-	# wget {${MYSQL_CONNECTOR_JAR_URI},${SPARK_BIN_URI}} -NP ./spark/resources
+	# wget {${HIVE_MYSQL_CONNECTOR_URI},${GUAVA_JAR_URI},${HIVE_BIN_URI}} -NP ./hive/resources
+	# wget {${HIVE_MYSQL_CONNECTOR_URI},${SPARK_BIN_URI}} -NP ./spark/resources
 	# wget ${KAFKA_BIN_URI} -NP ./kafka/resources
 	# wget ${FILEBEAT_BIN_URI} -NP ./server/resources
 
