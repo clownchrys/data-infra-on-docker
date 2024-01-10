@@ -184,6 +184,102 @@ x-kafka-cluster: &kafka-cluster
     hostname: kafka-3
 
 
+###############################
+##          Elastic          ##
+###############################
+
+
+x-elastic-variable:
+  elasticsearch-common: &elasticsearch-common
+    image: data-infra:elasticsearch
+    build:
+      context: elastic/elasticsearch
+      dockerfile: dockerfile
+      args:
+        ES_VERSION: 8.11.3
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    environment:
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+      ELASTIC_PASSWORD: elastic
+    volumes:
+      - ./elastic/elasticsearch/config/core/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    #   - ./elastic/elasticsearch/shared:/mnt/shared
+  kibana-common: &kibana-common
+    image: docker.elastic.co/kibana/kibana:8.11.3
+    volumes:
+      - ./elastic/kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml
+    #   - ./elastic/kibana/shared:/mnt/shared
+  logstash-common: &logstash-common
+    image: docker.elastic.co/logstash/logstash:8.11.3
+    volumes:
+      - ./elastic/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+    #   - ./logstash/conf/logstash-filebeat.conf:/usr/share/logstash/config/logstash.conf
+    #   - ./logstash/shared:/mnt/shared
+
+x-elastic-cluster: &elastic-cluster
+  elasticsearch:
+    <<: *elasticsearch-common
+    container_name: elasticsearch
+    hostname: elasticsearch
+    ports:
+      - "9200:9200"
+  es-node-1:
+    <<: *elasticsearch-common
+    container_name: es-node-1
+    hostname: es-node-1
+    environment:
+      - node.roles=master,data,ingest,transform,ml
+    ports:
+      - "9201:9200"
+  # es-node-2:
+  #   <<: *elasticsearch-common
+  #   container_name: es-node-2
+  #   hostname: es-node-2
+  #   environment:
+  #     - node.roles=master,data
+  # es-node-3:
+  #   <<: *elasticsearch-common
+  #   container_name: es-node-3
+  #   hostname: es-node-3
+  #   environment:
+  #     - node.roles=master,data
+  # es-node-4:
+  #   <<: *elasticsearch-common
+  #   container_name: es-node-4
+  #   hostname: es-node-4
+  #   environment:
+  #     - node.roles=data,ingest
+  # es-node-5:
+  #   <<: *elasticsearch-common
+  #   container_name: es-node-5
+  #   hostname: es-node-5
+  #   environment:
+  #     - node.roles=data,ingest,transform
+
+  # logstash-1:
+  #   <<: *logstash-common
+  #   container_name: logstash-1
+  #   hostname: logstash-1
+  #   ports:
+  #     - "9600:9600"
+  # logstash-2:
+  #   <<: *logstash-common
+  #   container_name: logstash-2
+  #   hostname: logstash-2
+
+  kibana:
+    <<: *kibana-common
+    container_name: kibana
+    hostname: kibana
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+
 ################################
 ##          Services          ##
 ################################
@@ -191,26 +287,27 @@ x-kafka-cluster: &kafka-cluster
 
 services:
   <<: [
-    *zookeeper-cluster,
-    *hadoop-spark-cluster,
-    *hive-cluster,
+    # *zookeeper-cluster,
+    # *hadoop-spark-cluster,
+    # *hive-cluster,
     # *kafka-cluster,
+    *elastic-cluster,
   ]
   # Database
-  mariadb:
-    container_name: mariadb
-    hostname: mariadb
-    image: mariadb:11.1
-    environment:
-      MARIADB_ROOT_PASSWORD: root
-    volumes:
-      - ./mariadb/init:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: [ "CMD", "mariadb-admin", "-uroot", "-proot", "ping" ]
-      interval: 5s
-      retries: 5
-    ports:
-      - "3306:3306"
+  # mariadb:
+  #   container_name: mariadb
+  #   hostname: mariadb
+  #   image: mariadb:11.1
+  #   environment:
+  #     MARIADB_ROOT_PASSWORD: root
+  #   volumes:
+  #     - ./mariadb/init:/docker-entrypoint-initdb.d
+  #   healthcheck:
+  #     test: [ "CMD", "mariadb-admin", "-uroot", "-proot", "ping" ]
+  #     interval: 5s
+  #     retries: 5
+  #   ports:
+  #     - "3306:3306"
   # sqlserver:
   #   container_name: sqlserver
   #   hostname: sqlserver
@@ -221,6 +318,12 @@ services:
   #     MSSQL_PID: Enterprise
   #   ports:
   #     - "1433:1433"
+  jupyter:
+    container_name: jupyter
+    hostname: jupyter
+    image: jupyter/minimal-notebook:latest
+    ports:
+      - "8888:8888"
 
 
 # networks:

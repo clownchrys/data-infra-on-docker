@@ -20,14 +20,6 @@ SPARK_BIN_URI = https://dlcdn.apache.org/spark/spark-${SPARK_VERSION}/spark-${SP
 HIVE_VERSION = 3.1.3
 HIVE_BIN_URI = https://dlcdn.apache.org/hive/hive-${HIVE_VERSION}/apache-hive-${HIVE_VERSION}-bin.tar.gz
 
-KAFKA_VERSION = 2.7.2
-KAFKA_SCALA_VERSION = 2.13
-KAFKA_BIN_URI = https://archive.apache.org/dist/kafka/${KAFKA_VERSION}/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION}.tgz
-# KAFKA_BIN_URI = https://downloads.apache.org/kafka/${KAFKA_VERSION}/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION}.tgz
-
-FILEBEAT_BIN_URI = https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-7.16.2-linux-x86_64.tar.gz
-# MINICONDA = https://repo.anaconda.com/miniconda/Miniconda3-py38_4.10.3-Linux-x86_64.sh
-
 # Spark Jars
 SPARK_MSSQL_CONNECTOR_FOR_SPARK_3_1_URI = https://repo1.maven.org/maven2/com/microsoft/azure/spark-mssql-connector_2.12/1.2.0/spark-mssql-connector_2.12-1.2.0.jar
 SPARK_MSSQL_CONNECTOR_FOR_SPARK_3_4_URI = https://github.com/microsoft/sql-spark-connector/releases/download/v1.4.0/spark-mssql-connector_2.12-1.4.0-BETA.jar
@@ -38,6 +30,18 @@ SPARK_DELTA_STORAGE_JAR_URI = https://repo1.maven.org/maven2/io/delta/delta-stor
 # Hive Jars
 HIVE_MYSQL_CONNECTOR_URI = https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.46/mysql-connector-java-5.1.46.jar
 HIVE_GUAVA_JAR_URI = https://repo1.maven.org/maven2/com/google/guava/guava/27.0-jre/guava-27.0-jre.jar
+
+KAFKA_VERSION = 2.7.2
+KAFKA_SCALA_VERSION = 2.13
+KAFKA_BIN_URI = https://archive.apache.org/dist/kafka/${KAFKA_VERSION}/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION}.tgz
+# KAFKA_BIN_URI = https://downloads.apache.org/kafka/${KAFKA_VERSION}/kafka_${KAFKA_SCALA_VERSION}-${KAFKA_VERSION}.tgz
+
+# ES_VERSION = ${ES_VERSION}
+ES_VERSION = 8.11.3
+ELASTIC_FILEBEAT_URI = https://artifacts.elastic.co/downloads/beats/metricbeat/metricbeat-${ES_VERSION}-amd64.deb
+ELASTIC_METRICBEAT_URI = https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-${ES_VERSION}-amd64.deb
+
+# MINICONDA = https://repo.anaconda.com/miniconda/Miniconda3-py38_4.10.3-Linux-x86_64.sh
 
 ################### TARGETS ###################
 
@@ -69,6 +73,10 @@ build-assets:
 	mkdir -p ./kafka/assets
 	wget ${KAFKA_BIN_URI} -nc -O ./kafka/assets/$(shell basename ${KAFKA_BIN_URI}) || exit 0
 
+	mkdir -p ./elastic/elasticsearch/assets
+	wget ${ELASTIC_FILEBEAT_URI} -nc -O ./elastic/elasticsearch/assets/$(shell basename ${ELASTIC_FILEBEAT_URI}) || exit 0
+	wget ${ELASTIC_METRICBEAT_URI} -nc -O ./elastic/elasticsearch/assets/$(shell basename ${ELASTIC_METRICBEAT_URI}) || exit 0
+
 	# wget ${FILEBEAT_BIN_URI} -NP ./server/assets
 
 # ifeq ($(shell ls ./hadoop/assets/hadoop-${HADOOP_VERSION}.tar.gz &> /dev/null || echo 0 && echo 1), 0)
@@ -83,7 +91,7 @@ build-os:
 	docker image build ./os -t ${PROJECT_NAME}:os
 
 .PHONY: up
-up: build-os
+up:
 	docker compose up -d --build
 
 .PHONY: down
