@@ -88,7 +88,8 @@ network.host: _site_
 #cluster.initial_master_nodes: ["node-1", "node-2"]
 #
 # For more information, consult the discovery and cluster formation module documentation.
-# discovery.zen.minimum_master_nodes: 1  # deprecated in 7, removed in 8
+# discovery.zen.minimum_master_nodes: 1  # deprecated in version 6.x, removed in version 8.x
+# https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery.html
 discovery.seed_hosts:
   - es-node-1
   # - es-node-2

@@ -1,0 +1,4 @@
+# Spark Compat
+apache-airflow-providers-apache-spark
+pyspark
+grpcio-status

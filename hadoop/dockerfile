@@ -30,6 +30,7 @@ FROM build-service-account AS build-hadoop
 
 ARG HADOOP_VERSION=3.3.6
 ARG BASE_DIR=/opt/hadoop
+ARG DATA_DIR=/data/hadoop
 
 COPY ./core/assets/hadoop-${HADOOP_VERSION}.tar.gz /tmp
 RUN mkdir ${BASE_DIR}
@@ -50,12 +51,12 @@ COPY ./core/ha/scripts/* /usr/sbin
 
 ARG SERVICE_ACCOUNT
 RUN mkdir -p \
-    /data/hadoop/journalnode \
-    /data/hadoop/datanode \
-    /data/hadoop/namenode
+    ${DATA_DIR}/journalnode \
+    ${DATA_DIR}/datanode \
+    ${DATA_DIR}/namenode
 RUN chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} \
-    /opt/hadoop \
-    /data/hadoop
+    ${BASE_DIR} \
+    ${DATA_DIR}
 
 FROM build-hadoop AS optimize-hadoop-false
 FROM build-hadoop AS optimize-hadoop-true
@@ -96,24 +97,23 @@ ARG SPARK_HADOOP_VERSION=3
 # ARG SPARK_VERSION=3.1.2
 # ARG SPARK_HADOOP_VERSION=3.2
 ARG BASE_DIR=/opt/spark
+ARG DATA_DIR=/data/spark
 
 COPY ./ecosystems/spark/assets/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}.tgz /tmp
 RUN mkdir ${BASE_DIR}
 RUN tar xvf /tmp/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}.tgz -C ${BASE_DIR} 
 RUN ln -sf ${BASE_DIR}/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION} ${BASE_DIR}/current
 
+COPY ./ecosystems/spark/requirements.txt /tmp/
 RUN apt update && apt install -y python3-pip
 RUN python3 -m pip install virtualenv
-RUN virtualenv -p python3.8 /data/spark/venv
-RUN /data/spark/venv/bin/pip3 install \
-    findspark \
-    pyhive \
-    delta-spark
+RUN virtualenv -p python3.8 ${DATA_DIR}/venv
+RUN ${DATA_DIR}/venv/bin/pip3 install --no-cache -r /tmp/requirements.txt
 
 ENV SPARK_HOME=${BASE_DIR}/current
 ENV SPARK_CONF_DIR=${SPARK_HOME}/conf
-ENV PYSPARK_PYTHON=/data/spark/venv/bin/python
-ENV PYSPARK_DRIVER_PYTHON=/data/spark/venv/bin/python
+ENV PYSPARK_PYTHON=${DATA_DIR}/venv/bin/python
+ENV PYSPARK_DRIVER_PYTHON=${DATA_DIR}/venv/bin/python
 ENV PATH=${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${PATH}
 
 COPY ./ecosystems/spark/assets/jars/* ${SPARK_HOME}/jars/
@@ -121,7 +121,7 @@ COPY ./ecosystems/spark/config/* ${SPARK_CONF_DIR}/
 COPY ./ecosystems/hive/config/hive-site.xml ${SPARK_CONF_DIR}/
 
 ARG SERVICE_ACCOUNT
-RUN chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} ${BASE_DIR}
+RUN chown -R ${SERVICE_ACCOUNT}:${SERVICE_ACCOUNT} ${BASE_DIR} ${DATA_DIR}
 
 FROM build-spark-${BUILD_SPARK} as build-spark
 

@@ -1,0 +1,28 @@
+FROM python:3.8
+
+ARG AIRFLOW_VERSION=2.6.3
+ARG PYTHON_VERSION=3.8
+ARG CONSTRAINT_URL=https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt
+
+# Install Airflow
+ENV AIRFLOW_HOME=/opt/airflow
+ENV AIRFLOW_DAG_HOME=${AIRFLOW_HOME}/dags
+ENV AIRFLOW_PLUGIN_HOME=${AIRFLOW_HOME}/plugins
+ENV AIRFLOW_EXTENSION_HOME=${AIRFLOW_HOME}/extensions
+ENV PYTHONPATH=${AIRFLOW_DAG_HOME}:${AIRFLOW_PLUGIN_HOME}:${AIRFLOW_EXTENSION_HOME}
+
+RUN pip install apache-airflow==${AIRFLOW_VERSION} --constraint ${CONSTRAINT_URL}
+
+# Install Requirements
+WORKDIR /tmp
+
+COPY ./requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Run Airflow
+WORKDIR ${AIRFLOW_HOME}
+
+EXPOSE 8080
+COPY ./config/* ${AIRFLOW_HOME}/
+COPY ./scripts/docker-entrypoint.sh /usr/sbin
+CMD ["docker-entrypoint.sh"]

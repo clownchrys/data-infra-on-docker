@@ -2,6 +2,40 @@ version: '3'
 
 
 #################################
+##          Databases          ##
+#################################
+
+
+x-mariadb: &mariadb
+  mariadb:
+    container_name: mariadb
+    hostname: mariadb
+    image: mariadb:11.1
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+    volumes:
+      - ./mariadb/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      extra: [ "CMD", "mariadb-admin", "-uroot", "-proot", "ping" ]
+      interval: 5s
+      retries: 5
+    ports:
+      - "3306:3306"
+
+x-sqlserver: &sqlserver
+  sqlserver:
+    container_name: sqlserver
+    hostname: sqlserver
+    image: mcr.microsoft.com/mssql/server:2019-CU20-ubuntu-20.04
+    environment:
+      ACCEPT_EULA: Y
+      MSSQL_SA_PASSWORD: SA_password!
+      MSSQL_PID: Enterprise
+    ports:
+      - "1433:1433"
+
+
+#################################
 ##          Zookeeper          ##
 #################################
 
@@ -67,21 +101,21 @@ x-hadoop-spark-variables:
         BUILD_SPARK: true
   master: &hadoop-spark-master
     depends_on:
-      - zk-1
-      - zk-2
-      - zk-3
-      - hdp-worker-1
-      - hdp-worker-2
-      - hdp-worker-3
+      zk-1: {condition: service_healthy}
+      zk-2: {condition: service_healthy}
+      zk-3: {condition: service_healthy}
+      hdp-worker-1: {condition: service_started}
+      hdp-worker-2: {condition: service_started}
+      hdp-worker-3: {condition: service_started}
   worker: &hadoop-spark-worker
-    command: ["init-hadoop-spark-worker.sh"]
+    command: ["docker-entrypoint-hadoop-spark-worker.sh"]
 
 x-hadoop-spark-cluster: &hadoop-spark-cluster
   hdp-master-1:
     <<: [ *hadoop-spark-common, *hadoop-spark-master ]
     container_name: hdp-master-1
     hostname: hdp-master-1
-    command: ["init-hadoop-spark-master.sh", "active"]
+    command: ["docker-entrypoint-hadoop-spark-master.sh", "active"]
     ports:
       - "9870:9870" # nn web-ui
       - "8088:8088" # yarn rm web-ui
@@ -91,7 +125,7 @@ x-hadoop-spark-cluster: &hadoop-spark-cluster
     <<: [ *hadoop-spark-common, *hadoop-spark-master ]
     container_name: hdp-master-2
     hostname: hdp-master-2
-    command: ["init-hadoop-spark-master.sh", "standby"]
+    command: ["docker-entrypoint-hadoop-spark-master.sh", "standby"]
     ports:
       - "9871:9870" # nn web-ui
       - "8089:8088" # yarn rm web-ui
@@ -100,7 +134,7 @@ x-hadoop-spark-cluster: &hadoop-spark-cluster
     <<: [ *hadoop-spark-common, *hadoop-spark-master ]
     container_name: hdp-master-3
     hostname: hdp-master-3
-    command: ["init-hadoop-spark-manager.sh"]
+    command: ["docker-entrypoint-hadoop-spark-manager.sh"]
     ports:
       - "19888:19888" # job history server web-ui
 
@@ -146,7 +180,7 @@ x-hive-cluster: &hive-cluster
       - 9083 # metastore
       - 10000 # hiveserver2
     depends_on:
-      mariadb: {"condition": "service_healthy"}
+      mariadb: {condition: service_healthy, restart: true}
 
 
 #############################
@@ -163,9 +197,9 @@ x-kafka-variables:
     environment:
       ZOOKEEPER_CONNECT: zk-1:2181,zk-2:2181,zk-3:2181
     depends_on:
-      zk-1: {"condition": "service_healthy"}
-      zk-2: {"condition": "service_healthy"}
-      zk-3: {"condition": "service_healthy"}
+      zk-1: {condition: service_healthy}
+      zk-2: {condition: service_healthy}
+      zk-3: {condition: service_healthy}
     expose:
       - 9092
 
@@ -196,7 +230,7 @@ x-elastic-variable:
       context: elastic/elasticsearch
       dockerfile: dockerfile
       args:
-        ES_VERSION: 8.11.3
+        ES_VERSION: 8.12.0
     ulimits:
       memlock:
         soft: -1
@@ -208,12 +242,12 @@ x-elastic-variable:
       - ./elastic/elasticsearch/config/core/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
     #   - ./elastic/elasticsearch/shared:/mnt/shared
   kibana-common: &kibana-common
-    image: docker.elastic.co/kibana/kibana:8.11.3
+    image: docker.elastic.co/kibana/kibana:8.12.0
     volumes:
       - ./elastic/kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml
     #   - ./elastic/kibana/shared:/mnt/shared
   logstash-common: &logstash-common
-    image: docker.elastic.co/logstash/logstash:8.11.3
+    image: docker.elastic.co/logstash/logstash:8.12.0
     volumes:
       - ./elastic/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
     #   - ./logstash/conf/logstash-filebeat.conf:/usr/share/logstash/config/logstash.conf
@@ -221,11 +255,18 @@ x-elastic-variable:
 
 x-elastic-cluster: &elastic-cluster
   elasticsearch:
+    # coordinator node (no roles)
     <<: *elasticsearch-common
     container_name: elasticsearch
     hostname: elasticsearch
     ports:
       - "9200:9200"
+    healthcheck:
+      # test: 'curl --silent -XGET "elasticsearch:9200/_cluster/health" | sed "s/ //g" | grep "\"status\":\"green\""'
+      test: [CMD, curl, -XGET, http://elasticsearch:9200/_cluster/health]
+      interval: 30s
+      timeout: 20s
+      retries: 5
   es-node-1:
     <<: *elasticsearch-common
     container_name: es-node-1
@@ -277,57 +318,88 @@ x-elastic-cluster: &elastic-cluster
     ports:
       - "5601:5601"
     depends_on:
-      - elasticsearch
+      elasticsearch: {condition: service_healthy, restart: true}
 
 
-################################
-##          Services          ##
-################################
+##############################
+##          Extras          ##
+##############################
+
+
+x-extras: &extras
+  airflow:
+    container_name: airflow
+    hostname: airflow
+    image: data-infra:airflow
+    build:
+      context: airflow
+      dockerfile: dockerfile
+      args:
+        AIRFLOW_VERSION: 2.6.3
+        PYTHON_VERSION: 3.8
+    volumes:
+      - "./airflow/dags:/opt/airflow/dags"
+      - "./airflow/plugins:/opt/airflow/plugins"
+      - "./airflow/extensions:/opt/airflow/extensions"
+    ports:
+      - "8080:8080"
+  jupyter:
+    container_name: jupyter
+    hostname: jupyter
+    image: quay.io/jupyter/pytorch-notebook:latest
+    ports:
+      - "8888:8888"
+  fastapi:
+    container_name: fastapi
+    hostname: fastapi
+    image: data-infra:fastapi
+    build:
+      context: fastapi
+      dockerfile: dockerfile
+    ports:
+      - "2000:2000"
+    depends_on:
+      elasticsearch: {condition: service_healthy, restart: true}
+  minio:
+    container_name: minio
+    hostname: minio
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+    #   interval: 30s
+    #   timeout: 20s
+    #   retries: 3
+
+
+####################################################
+##          Definition of docker-compose          ##
+####################################################
 
 
 services:
   <<: [
-    # *zookeeper-cluster,
-    # *hadoop-spark-cluster,
+    # *mariadb,
+    # *sqlserver,
+    *zookeeper-cluster,
+    *hadoop-spark-cluster,
     # *hive-cluster,
     # *kafka-cluster,
     *elastic-cluster,
+    *extras,
   ]
-  # Database
-  # mariadb:
-  #   container_name: mariadb
-  #   hostname: mariadb
-  #   image: mariadb:11.1
-  #   environment:
-  #     MARIADB_ROOT_PASSWORD: root
-  #   volumes:
-  #     - ./mariadb/init:/docker-entrypoint-initdb.d
-  #   healthcheck:
-  #     test: [ "CMD", "mariadb-admin", "-uroot", "-proot", "ping" ]
-  #     interval: 5s
-  #     retries: 5
-  #   ports:
-  #     - "3306:3306"
-  # sqlserver:
-  #   container_name: sqlserver
-  #   hostname: sqlserver
-  #   image: mcr.microsoft.com/mssql/server:2019-CU20-ubuntu-20.04
-  #   environment:
-  #     ACCEPT_EULA: Y
-  #     MSSQL_SA_PASSWORD: SA_password!
-  #     MSSQL_PID: Enterprise
-  #   ports:
-  #     - "1433:1433"
-  jupyter:
-    container_name: jupyter
-    hostname: jupyter
-    image: jupyter/minimal-notebook:latest
-    ports:
-      - "8888:8888"
 
 
-# networks:
-#   default:
-#     ipam:
-#       config:
-#         - subnet: 255.255.255.0
+networks:
+  default:
+    name: data-infra-on-docker
+    driver: bridge
+    # ipam:
+    #   config:
+    #     - subnet: 255.255.255.0

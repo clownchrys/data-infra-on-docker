@@ -1,0 +1,380 @@
+import os
+import sys
+import asyncio
+from datetime import timedelta
+from functools import wraps, partial
+from typing import *
+
+from airflow.utils.decorators import apply_defaults
+from airflow.utils.context import Context
+from airflow.models.baseoperator import BaseOperator
+from airflow.triggers.base import BaseTrigger, TriggerEvent
+
+import boto3
+from botocore.config import Config as BotoConfig
+
+import sagemaker
+from sagemaker.estimator import EstimatorBase
+from sagemaker.pytorch import PyTorch
+from sagemaker.tensorflow import TensorFlow
+
+sys.path.insert(1, "/home/airflow/airflow/common")
+# from config import Config as cfg
+
+
+# test dummy class
+class cfg:
+    @staticmethod
+    def get_sagemaker_info():
+        return {
+            "role": "role",
+            "subnet": "subnet",
+            "security_group": "security_group"
+        }
+
+    @staticmethod
+    def s3_bucket(*args, **kwargs):
+        return "s3_bucket"
+
+
+# class Context:
+# {
+#     'conf': <***.configuration.AirflowConfigParser object at 0x7fd6bd4d8ad0>,
+#     'dag': <DAG: check_deferred>,
+#     'dag_run': <DagRun check_deferred @ 2023-01-13 01:52:00+00:00: scheduled__2023-01-13T01:52:00+00:00, externally triggered: False>,
+#     'data_interval_end': DateTime(2023, 1, 13, 1, 53, 0, tzinfo=Timezone('UTC')), 'data_interval_start': DateTime(2023, 1, 13, 1, 52, 0, tzinfo=Timezone('UTC')), 'ds': '2023-01-13',
+#     'ds_nodash': '20230113',
+#     'execution_date': DateTime(2023, 1, 13, 1, 52, 0, tzinfo=Timezone('UTC')), 'inlets': [],
+#     'logical_date': DateTime(2023, 1, 13, 1, 52, 0, tzinfo=Timezone('UTC')),
+#     'macros': <module '***.macros' from '/home/***/.local/lib/python3.7/site-packages/***/macros/__init__.py'>,
+#     'next_ds': '2023-01-13',
+#     'next_ds_nodash': '20230113',
+#     'next_execution_date': DateTime(2023, 1, 13, 1, 53, 0, tzinfo=Timezone('UTC')), 'outlets': [],
+#     'params': {},
+#     'prev_data_interval_start_success': None,
+#     'prev_data_interval_end_success': None,
+#     'prev_ds': '2023-01-13',
+#     'prev_ds_nodash': '20230113',
+#     'prev_execution_date': DateTime(2023, 1, 13, 1, 51, 0, tzinfo=Timezone('UTC')), 'prev_execution_date_success': None,
+#     'prev_start_date_success': None,
+#     'run_id': 'scheduled__2023-01-13T01:52:00+00:00',
+#     'task': <Task(TrainingJobOperatorAsync): training_job>,
+#     'task_instance': <TaskInstance: check_deferred.training_job scheduled__2023-01-13T01:52:00+00:00 [running]>,
+#     'task_instance_key_str': 'check_deferred__training_job__20230113',
+#     'test_mode': False,
+#     'ti': <TaskInstance: check_deferred.training_job scheduled__2023-01-13T01:52:00+00:00 [running]>,
+#     'tomorrow_ds': '2023-01-14',
+#     'tomorrow_ds_nodash': '20230114',
+#     'ts': '2023-01-13T01:52:00+00:00',
+#     'ts_nodash': '20230113T015200',
+#     'ts_nodash_with_tz': '20230113T015200+0000',
+#     'var': {'json': None, 'value': None},
+#     'conn': None,
+#     'yesterday_ds': '2023-01-12',
+#     'yesterday_ds_nodash': '20230112'
+# }
+
+__AIRFLOW_HOME__ = os.environ["AIRFLOW_HOME"]
+__MODULE_PATH__ = os.path.relpath(__file__, __AIRFLOW_HOME__ + "/plugins").rstrip(".py").replace("/", ".")
+
+
+#TODO: decorator 별도 모듈화
+#TODO: 혹시 boto3 api 문제 발생 시, api 호출 부분을 retry wrapper 로 감싸서 사용 예정
+
+
+def override(func: Callable):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+
+# async def async_retry_wrapper(async_func: Callable):
+#     @wraps(func)
+#     def wrap(*args, **kwargs):
+
+
+class TrainingJobTrigger(BaseTrigger):
+    """
+    `deferred` 상태로 실행된 training job task 를 event-firing 하기 위한 트리거 클래스
+    """
+
+    @override
+    def __init__(
+        self,
+        key: str,
+        estimator: EstimatorBase,
+        status_check_interval: int,
+        retry_interval: int,
+        retry_per_instance_type: int,
+        retry_instance_types: List[str],
+    ):
+        """
+        :param key: str
+        . id to specify triggering scope
+
+        :param estimator: EstimatorBase
+        . sagemaker training job estimator object
+
+        :param status_check_interval: int
+        . seconds
+        . interval to check job status
+
+        :param retry_interval: int
+        . seconds
+        . interval between each tries
+
+        :param retry_per_instance_type:
+        . how many retries using an instance type
+
+        :param retry_instance_types: List[str]
+        . instance type variations for retrying
+        """
+        super().__init__()
+
+        self.key = key
+        self.estimator = estimator
+        self.status_check_interval = status_check_interval
+        self.retry_interval = retry_interval
+        self.retry_per_instance_type = retry_per_instance_type
+        self.retry_instance_types = retry_instance_types
+
+
+    @override
+    def serialize(self) -> Tuple[str, Dict[str, Any]]:
+        classpath: str = f"{__MODULE_PATH__}.{self.__class__.__name__}"
+        kwargs: dict = {
+            "key": self.key,
+            "estimator": self.estimator,
+            "status_check_interval": self.status_check_interval,
+            "retry_instance_types": self.retry_instance_types,
+        }
+        return classpath, kwargs
+
+
+    @override
+    async def run(self) -> AsyncGenerator[TriggerEvent, None]:
+        retry_iterator = range(
+            len(self.retry_instance_types) * self.retry_per_instance_type
+        )
+
+        for retry in retry_iterator:
+
+            # dynamically change instance types
+            self.estimator.instance_type = self.retry_instance_types[
+                retry // self.retry_per_instance_type
+            ]
+
+            # run job
+            description = await self.run_and_wait_until_job_finished()
+            job_status = description["TrainingJobStatus"]
+            failure_reason = description.get("FailureReason", job_status)
+
+            # if job finished with Success, fire event
+            if job_status == "Success":
+                yield TriggerEvent(self.key)
+
+            # if not, retry into next iteration or raise exception
+            is_retry = (
+                job_status == "Failed"
+                and failure_reason.startswith("CapacityError")
+            )
+            if is_retry:
+                print(f"{self.key!r} is retrying({retry + 1})... wait for {self.retry_interval} seconds")
+                await asyncio.sleep(self.retry_interval)
+            else:
+                raise Exception(failure_reason)
+
+        raise Exception("retry exceeded")
+
+
+    async def run_and_wait_until_job_finished(self):
+        self.estimator.fit(wait=False)
+
+        check_fn = partial(
+            self.estimator.sagemaker_session.describe_training_job,
+            job_name=self.estimator._current_job_name
+        )
+        description = check_fn()
+
+        while description["TrainingJobStatus"] == "InProgress":
+            await asyncio.sleep(self.status_check_interval)
+            description = check_fn()
+
+        return description
+
+
+    @override
+    def cleanup(self) -> NoReturn:
+        super().cleanup()
+
+
+class DeferrableTrainingJobOperator(BaseOperator):
+
+    ESTIMATOR_TYPE = {
+        "pytorch": {"class": PyTorch, "framework_version": "1.10", "py_version": "py38"},
+        "tensorflow": {"class": TensorFlow, "framework_version": "2.6.2", "py_version": "py38"},
+    }
+    REPOSITORY_ROOT = "/home/airflow/sagemaker/mlrepository"
+    ARTIFACT_ROOT = f"{cfg.s3_bucket('workspace')}/sagemaker/artifact"
+    SM_CONFIG = cfg.get_sagemaker_info()
+
+    @override
+    @apply_defaults
+    def __init__(
+        self,
+        # estimator parameter
+        estimator_cls: Union["pytorch", "tensorflow"],  # use Literal instead of Union, in python3.8+
+        base_job_name: str,
+        source_dir: str,
+        entry_point: str,
+        instance_types: List[str],
+        instance_count: int,
+        dependencies: List[str],
+        environment: Dict[str, str],
+        tags: List[Dict[Union["Key", "Value"], str]],  # use Literal instead of Union, in python3.8+
+        # trigger parameter
+        timeout: int = 3600 * 24,
+        status_check_interval: int = 600,
+        retry_interval: int = 600,
+        retry_per_instance_type: int = 3600 * 24,
+        # airflow parameter
+        **kwargs
+    ):
+        """
+        [estimator parameter]
+
+        :param estimator_cls: "pytorch" | "tensorflow"
+        . estimator class to run training job (if use ECR, change it image_uri)
+
+        :param base_job_name: str
+        . sagemaker docs
+
+        :param source_dir: str
+        . sagemaker docs
+
+        :param entry_point: str
+        . sagemaker docs
+
+        :param instance_types: List[str]
+        . instance types to run training job
+        . retry with each types sequentially, when raised specific exception (e.g. CapacityError)
+
+        :param instance_count: int
+        . sagemaker docs
+
+        :param dependencies: List[str]
+        . sagemaker docs
+
+        :param environment: Dict[str, str]
+        . sagemaker docs
+
+        :param tags: List[Dict[Literal["Key", "Value"], str]]
+        . sagemaker docs
+
+        [trigger parameter]
+
+        :param timeout: int
+        . seconds
+        . max execution time to run (to kill zombie trigger forcibly)
+        . default value is 86400, it means the trigger will be killed in triggerer after 24 hours, though it runs
+
+        :param status_check_interval: int
+        . seconds
+        . interval for trigger to check job status
+        . default value is 600, it means check each 10 minutes
+
+        :param retry_interval: int
+        . seconds
+        . interval between each retries
+
+        :param retry_per_instance_type: int
+        . count for an instance type to try
+
+        [airflow operator kwargs]
+
+        :param kwargs:
+        . airflow operator default parameters
+        """
+        super(DeferrableTrainingJobOperator, self).__init__(**kwargs)
+
+        # validate parameters
+        assert estimator_cls.lower() in self.ESTIMATOR_TYPE.keys()
+        assert status_check_interval > 0
+        assert timeout > 0
+
+        # build estimator
+        estimator_info = self.ESTIMATOR_TYPE[estimator_cls.lower()]
+
+        sm_client = boto3.client(
+            "sagemaker",
+            config=BotoConfig(connect_timeout=5, read_timeout=60, retries={"max_attempts": 20, "mode": "standard"})
+        )
+        sm_sess = sagemaker.Session(sagemaker_client=sm_client)
+
+        self.estimator = estimator_info["class"](
+            base_job_name = base_job_name,
+            source_dir = os.path.join(self.REPOSITORY_ROOT, source_dir),
+            entry_point = entry_point,
+            instance_types = instance_types[0],
+            instance_count = instance_count,
+            dependencies = [os.path.join(self.REPOSITORY_ROOT, dep_dir) for dep_dir in dependencies],
+            environment = environment,
+            framework_version = estimator_info["framework_version"],
+            py_version = estimator_info["py_version"],
+            tags = tags,
+            role = self.SM_CONFIG["role"],
+            subnets = [self.SM_CONFIG["subnet"]],
+            security_group_ids = [self.SM_CONFIG["security_group"]],
+            output_path = self.ARTIFACT_ROOT,
+            code_location = self.ARTIFACT_ROOT,
+            sagemaker_session = sm_sess,
+        )
+        self.instance_types = instance_types
+
+        # trigger parameter
+        self.timeout = timedelta(seconds=timeout)
+        self.status_check_interval = status_check_interval
+        self.retry_interval = retry_interval
+        self.retry_per_instance_type = retry_per_instance_type
+
+
+    @override
+    def execute(self, context: Context) -> NoReturn:
+        trigger = TrainingJobTrigger(
+            key=f"{context['dag'].dag_id}.{context['ti'].task_id} {context['run_id']}",
+            estimator=self.estimator,
+            status_check_interval=self.status_check_interval,
+            retry_instance_types=self.instance_types,
+            retry_interval=self.retry_interval,
+            retry_per_instance_type=self.retry_per_instance_type,
+        )
+        self.defer(trigger=trigger, method_name="execute_complete", kwargs={}, timeout=self.timeout)
+
+
+    def execute_complete(self, context: Context, event: str) -> Any:
+        pass
+
+
+if __name__ == "__main__":
+
+    # this ain't working, just usage sample
+    task_training_job = DeferrableTrainingJobOperator(
+        estimator_cls="tensorflow",
+        base_job_name="deferrable-operator-test",
+        source_dir="dummy",
+        entry_point="entrypoint.py",
+        instance_types=["ml.g4dn.8xlarge", "ml.p2.8xlarge", "ml.p3.8xlarge"],
+        instance_count=1,
+        dependencies=["common"],
+        environment={
+            "ENV": "staging"
+        },
+        tags=[
+            {"Key": "dag", "Value": "test_dag"}
+        ],
+        timeout=1800,
+        status_check_interval=60,
+        retry_interval=180,
+        retry_per_instance_type=3,
+    )
