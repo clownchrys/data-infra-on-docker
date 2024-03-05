@@ -1,0 +1,93 @@
+version: 1
+disable_existing_loggers: False
+
+formatters:
+  basic:
+    format: "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
+    datefmt: "%Y-%m-%d %H:%M:%ST%z"
+
+handlers: 
+  console: 
+    class: logging.StreamHandler
+    level: INFO
+    formatter: basic
+
+  # RotatingFileHandler
+  application_rotate: 
+    class: logging.handlers.RotatingFileHandler
+    level: INFO
+    formatter: basic
+    filename: ${LOG_HOME}/application.log
+    # mode: a
+    # maxBytes: 0
+    # backupCount: 0
+    # encoding: None
+    # delay: False
+  access_rotate:
+    class: logging.handlers.RotatingFileHandler
+    level: INFO
+    formatter: basic
+    filename: ${LOG_HOME}/access.log
+    # mode: a
+    # maxBytes: 0
+    # backupCount: 0
+    # encoding: None
+    # delay: False
+  error_rotate:
+    class: logging.handlers.RotatingFileHandler
+    level: ERROR
+    formatter: basic
+    filename: ${LOG_HOME}/error.log
+    # mode: a
+    # maxBytes: 0
+    # backupCount: 0
+    # encoding: None
+    # delay: False
+
+  # TimedRotatingFileHandler
+  # access_rotate:
+  #   class: logging.handlers.TimedRotatingFileHandler
+  #   level: INFO
+  #   formatter: basic
+  #   filename: /var/log/fastapi/access.log
+  #   when: D
+  #   interval: 1
+  #   # backupCount: 0
+  #   # encoding: None
+  #   # delay: False
+  #   # utc: False
+  #   # atTime: None
+  #   # errors: None
+  # error_rotate:
+  #   class: logging.handlers.TimedRotatingFileHandler
+  #   level: ERROR
+  #   formatter: basic
+  #   filename: /var/log/fastapi/error.log
+  #   when: D
+  #   interval: 1
+  #   # backupCount: 0
+  #   # encoding: None
+  #   # delay: False
+  #   # utc: False
+  #   # atTime: None
+  #   # errors: None
+
+loggers:
+  gunicorn.access:
+    # handlers: [console, access_rotate]
+    propagate: False
+  gunicorn.error:
+    # handlers: [console, error_rotate]
+    propagate: False
+  AppLogger:
+    level: INFO
+    handlers: [console, application_rotate]
+    propagate: False
+  AccessLogger:
+    level: INFO
+    handlers: [console, access_rotate]
+    propagate: False
+  ErrorLogger:
+    level: INFO
+    handlers: [console, error_rotate]
+    propagate: False

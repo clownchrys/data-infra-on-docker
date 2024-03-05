@@ -1,0 +1,22 @@
+backend: "python"
+max_batch_size: 128 # can be optimized based on available GPU memory
+name: "python_backend" # needed for reference in the client
+input [
+  {
+    name: "INPUT_IDS"
+    data_type: TYPE_INT32
+    dims: [ -1 ]
+    allow_ragged_batch: true
+  }
+]
+output [
+  {
+    name: "OUTPUT_IDS"
+    data_type: TYPE_INT32
+    dims: [ -1 ]
+  }
+]
+instance_group [{ kind: KIND_CPU }] # can be KIND_GPU
+dynamic_batching {
+  max_queue_delay_microseconds: 5000
+}

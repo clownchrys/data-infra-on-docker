@@ -1,0 +1,8 @@
+2024-02-05T06:09:47,909 - WorkerLoadTime.Milliseconds:6508.0|#WorkerName:W-9000-testmodel_1.0,Level:Host|#hostname:torchserve,timestamp:1707113387
+2024-02-05T06:09:47,910 - WorkerThreadTime.Milliseconds:68.0|#Level:Host|#hostname:torchserve,timestamp:1707113387
+2024-02-05T06:10:26,198 - ts_inference_requests_total.Count:1.0|#model_name:testmodel,model_version:default|#hostname:torchserve,timestamp:1707113426
+2024-02-05T06:10:26,206 - Requests2XX.Count:1.0|#Level:Host|#hostname:torchserve,timestamp:1707113426
+2024-02-05T06:10:26,208 - ts_inference_latency_microseconds.Microseconds:3951.041|#model_name:testmodel,model_version:default|#hostname:torchserve,timestamp:1707113426
+2024-02-05T06:10:26,209 - ts_queue_latency_microseconds.Microseconds:176.796|#model_name:testmodel,model_version:default|#hostname:torchserve,timestamp:1707113426
+2024-02-05T06:10:26,211 - QueueTime.Milliseconds:0.0|#Level:Host|#hostname:torchserve,timestamp:1707113426
+2024-02-05T06:10:26,213 - WorkerThreadTime.Milliseconds:10.0|#Level:Host|#hostname:torchserve,timestamp:1707113426

@@ -1,4 +1,10 @@
 findspark
-pyhive
 delta-spark
+pyhive
 torch
+smart_open[s3]
+# smart_open.azure                 smart_open.doctools              smart_open.local_file            smart_open.register_compressor(  smart_open.ssh
+# smart_open.bytebuffer            smart_open.ftp                   smart_open.logger                smart_open.s3                    smart_open.transport
+# smart_open.compression           smart_open.gcs                   smart_open.logging               smart_open.s3_iter_bucket(       smart_open.utils
+# smart_open.concurrency           smart_open.hdfs                  smart_open.open(                 smart_open.smart_open(           smart_open.version
+# smart_open.constants             smart_open.http                  smart_open.parse_uri(            smart_open.smart_open_lib        smart_open.webhdfs

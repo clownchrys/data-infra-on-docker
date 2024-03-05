@@ -5,7 +5,7 @@ df = spark.createDataFrame([{"id": i, "value": "test"} for i in range(10000000)]
 mode = "overwrite"
 options = {
     # server opt
-    "url": "jdbc:sqlserver://sqlserver:1433;",
+    "url": "jdbc:sqlserver://sqlserver:1433;useBulkCopyForBatchInsert=true;",
     "user": "sa",
     "password": "SA_password!",
     "encrypt": False,
@@ -22,8 +22,10 @@ options = {
 }
 
 start = time.perf_counter()
-df.write.format("com.microsoft.sqlserver.jdbc.spark").mode("overwrite").options(**options).save()
-# df.write.format("jdbc").mode(mode).options(**options).save()
+sc.setLogLevel("DEBUG")
+# df.write.format("com.microsoft.sqlserver.jdbc.spark").mode("overwrite").options(**options).save()
+df.write.format("jdbc").mode(mode).options(**options).save()
 # df.write.format("delta").mode(mode).options(**options).save()
+sc.setLogLevel("WARN")
 end = time.perf_counter()
 print(end - start)

@@ -3,15 +3,39 @@
 #
 
 # Default Kibana configuration for docker target
-server.host: "0.0.0.0"
-server.shutdownTimeout: "5s"
-elasticsearch.hosts:
-  - http://elasticsearch:9200
-monitoring.ui.container.elasticsearch.enabled: true
-#xpack.encryptedSavedObjects.encryptionKey:
+server:
+  host: "0.0.0.0"
+  shutdownTimeout: "5s"
+  # ssl: 
+  #   enabled: true
+  #   certificate: certs/${HOSTNAME}/${HOSTNAME}.crt
+  #   key: certs/${HOSTNAME}/${HOSTNAME}.key
 
 # Use 'kibana_system' as username rather than 'elastic' in production,
 # after setting passwords in elasticsearch
-# elasticsearch:
-#   username: "elastic"
-#   password: "elastic"
+elasticsearch:
+  hosts:
+  - http://elasticsearch:9200
+  username: elasticadmin
+  password: elasticadmin
+
+# SSL Enabled
+# xpack.security:
+#   enabled: true
+#   transport.ssl:
+#     enabled: true
+#     verification_mode: certificate
+#     keystore.path: certs/${HOSTNAME}/${HOSTNAME}.p12
+#     truststore.path: certs/${HOSTNAME}/${HOSTNAME}.p12
+
+# Fleet
+# https://www.elastic.co/guide/en/kibana/current/fleet-settings-kb.html
+# xpack.fleet:
+#   agents.enabled: true
+#   agents.elasticsearch.hosts:
+#   - http://elasticsearch:9200
+
+#xpack.encryptedSavedObjects.encryptionKey:
+xpack.reporting.kibanaServer.hostname: localhost
+
+monitoring.ui.container.elasticsearch.enabled: true

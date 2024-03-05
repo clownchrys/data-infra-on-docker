@@ -1,0 +1,14 @@
+FROM python:3.8
+
+# 1. Install bentoml & dependencies
+COPY ./requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt
+
+# 2. Setup API
+COPY ./code /code
+
+WORKDIR /code/01-model-archive
+RUN ./run.sh
+
+WORKDIR /code/02-run-server
+CMD ./run.sh

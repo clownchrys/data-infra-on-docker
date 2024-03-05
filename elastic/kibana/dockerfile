@@ -1,0 +1,15 @@
+ARG VERSION=x.y.z
+
+FROM docker.elastic.co/kibana/kibana:${VERSION}
+ARG VERSION
+
+# Install mgmt tools
+USER root
+RUN apt update && \
+    apt install -y net-tools vim jq sudo
+
+RUN echo 'kibana:kibana' | chpasswd
+RUN echo 'kibana	ALL=(ALL:ALL) ALL' > /etc/sudoers.d/kibana
+
+# Change user to app account
+USER kibana

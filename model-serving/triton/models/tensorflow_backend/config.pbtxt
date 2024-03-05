@@ -1,0 +1,2 @@
+backend: "tensorflow"
+platform: "tensorflow_savedmodel" # or "tensorflow_graphdef"

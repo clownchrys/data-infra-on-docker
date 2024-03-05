@@ -1,9 +1,9 @@
 version: '3'
 
 
-#################################
-##          Databases          ##
-#################################
+####################################
+##          DB & Storage          ##
+####################################
 
 
 x-mariadb: &mariadb
@@ -17,8 +17,9 @@ x-mariadb: &mariadb
       - ./mariadb/init:/docker-entrypoint-initdb.d
     healthcheck:
       extra: [ "CMD", "mariadb-admin", "-uroot", "-proot", "ping" ]
-      interval: 5s
-      retries: 5
+      interval: 10s
+      timeout: 50s
+      retries: 10
     ports:
       - "3306:3306"
 
@@ -29,10 +30,33 @@ x-sqlserver: &sqlserver
     image: mcr.microsoft.com/mssql/server:2019-CU20-ubuntu-20.04
     environment:
       ACCEPT_EULA: Y
-      MSSQL_SA_PASSWORD: SA_password!
+      MSSQL_SA_PASSWORD: SA_password! # ID: sa
       MSSQL_PID: Enterprise
     ports:
       - "1433:1433"
+
+x-minio: &minio
+  minio:
+    container_name: minio
+    hostname: minio
+    image: quay.io/minio/minio:RELEASE.2024-01-31T20-20-33Z
+    command: [ "server", "start", "--console-address", ":9001" ]
+    environment:
+      # https://min.io/docs/minio/linux/reference/minio-server/settings.html
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+      MINIO_VOLUMES: /data
+    volumes:
+      - "./minio/data:/data"
+    ports:
+      - "9000:9000"  # S3 API port
+      - "9001:9001"  # web ui console
+    # FIXME: image does not include curl
+    # healthcheck:
+    #   test: curl --fail --silent -f http://localhost:9000/minio/health/live
+    #   interval: 10s
+    #   timeout: 50s
+    #   retries: 10
 
 
 #################################
@@ -47,7 +71,8 @@ x-zookeeper-variables:
     healthcheck:
       test: [ "CMD", "zkServer.sh", "status" ]
       interval: 10s
-      retries: 5
+      timeout: 50s
+      retries: 10
   environment: &zookeeper-environment # https://hub.docker.com/_/zookeeper
     ZOO_PORT: 2181
     ZOO_SERVERS: >
@@ -99,6 +124,10 @@ x-hadoop-spark-variables:
       args:
         OPTIMIZE_HADOOP: true
         BUILD_SPARK: true
+    environment:
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+      AWS_ENDPOINT_URL: http://minio:9000
   master: &hadoop-spark-master
     depends_on:
       zk-1: {condition: service_healthy}
@@ -171,7 +200,7 @@ x-hive-cluster: &hive-cluster
     <<: *hive-common
     container_name: hive-1
     hostname: hive-1
-    command: ["init-hive.sh"]
+    command: ["docker-entrypoint-hive.sh"]
     ports:
       # - "9083:9083" # metastore
       # - "10000:10000" # hiverserver2
@@ -224,57 +253,99 @@ x-kafka-cluster: &kafka-cluster
 
 
 x-elastic-variable:
-  elasticsearch-common: &elasticsearch-common
+  init-elastic: &init-elastic
+    container_name: init-elastic
+    hostname: init-elastic
     image: data-infra:elasticsearch
     build:
       context: elastic/elasticsearch
       dockerfile: dockerfile
       args:
-        ES_VERSION: 8.12.0
+        VERSION: 8.11.0
+    command: >
+      bash -c '
+      rm -f /tmp/ca.zip;
+      bin/elasticsearch-certutil ca --silent --pem -out /tmp/ca.zip;
+      unzip -o /tmp/ca.zip -d /etc/ssl/certs;
+      rm -f /tmp/certs.zip;
+      bin/elasticsearch-certutil cert --silent --pem -out /tmp/certs.zip \
+        --in /etc/ssl/certs/instances.yml \
+        --ca-cert /etc/ssl/certs/ca/ca.crt \
+        --ca-key /etc/ssl/certs/ca/ca.key;
+      unzip -o /tmp/certs.zip -d /etc/ssl/certs;
+      echo 'All done!';
+      '
+    volumes:
+      - ./elastic/common/certs:/etc/ssl/certs
+  elasticsearch-common: &elasticsearch-common
+    depends_on:
+      init-elastic: {condition: service_completed_successfully}
+    image: data-infra:elasticsearch
+    build:
+      context: elastic/elasticsearch
+      dockerfile: dockerfile
+      args:
+        VERSION: 8.11.0
     ulimits:
       memlock:
         soft: -1
         hard: -1
     environment:
+      # ES는 HEAP SIZE 30 ~ 32G가 최대치
       ES_JAVA_OPTS: -Xms1g -Xmx1g
       ELASTIC_PASSWORD: elastic
     volumes:
+      - ./elastic/common/certs:/usr/share/elasticsearch/config/certs
       - ./elastic/elasticsearch/config/core/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
-    #   - ./elastic/elasticsearch/shared:/mnt/shared
+      # - ./elastic/elasticsearch/shared:/mnt/shared
+    healthcheck:
+      test: '[ $(curl --silent --fail -u elasticadmin:elasticadmin http://localhost:9200/_nodes/$(hostname)/info --cacert ~/config/certs/ca/ca.crt | jq ._nodes.successful) -eq 1 ]'
+      interval: 10s
+      timeout: 50s
+      retries: 10
   kibana-common: &kibana-common
-    image: docker.elastic.co/kibana/kibana:8.12.0
+    depends_on:
+      init-elastic: {condition: service_completed_successfully}
+      elasticsearch: {condition: service_healthy}
+    image: data-infra:kibana
+    build:
+      context: elastic/kibana
+      dockerfile: dockerfile
+      args:
+        VERSION: 8.11.0
     volumes:
+      - ./elastic/common/certs:/usr/share/kibana/config/certs
       - ./elastic/kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml
-    #   - ./elastic/kibana/shared:/mnt/shared
+    healthcheck:
+      test: '[ $(curl --silent --fail http://localhost:5601/api/status | jq .status.overall.level) = "\"available\"" ]'
+      interval: 10s
+      timeout: 50s
+      retries: 10
   logstash-common: &logstash-common
-    image: docker.elastic.co/logstash/logstash:8.12.0
+    depends_on:
+      init-elastic: {condition: service_completed_successfully}
+      elasticsearch: {condition: service_healthy}
+    image: docker.elastic.co/logstash/logstash:8.11.0
     volumes:
+      - ./elastic/common/certs:/usr/share/logstash/config/certs
       - ./elastic/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
-    #   - ./logstash/conf/logstash-filebeat.conf:/usr/share/logstash/config/logstash.conf
-    #   - ./logstash/shared:/mnt/shared
+      # - ./logstash/conf/logstash-filebeat.conf:/usr/share/logstash/config/logstash.conf
 
 x-elastic-cluster: &elastic-cluster
+  init-elastic:
+    <<: *init-elastic
   elasticsearch:
-    # coordinator node (no roles)
     <<: *elasticsearch-common
     container_name: elasticsearch
     hostname: elasticsearch
     ports:
       - "9200:9200"
-    healthcheck:
-      # test: 'curl --silent -XGET "elasticsearch:9200/_cluster/health" | sed "s/ //g" | grep "\"status\":\"green\""'
-      test: [CMD, curl, -XGET, http://elasticsearch:9200/_cluster/health]
-      interval: 30s
-      timeout: 20s
-      retries: 5
   es-node-1:
     <<: *elasticsearch-common
     container_name: es-node-1
     hostname: es-node-1
     environment:
       - node.roles=master,data,ingest,transform,ml
-    ports:
-      - "9201:9200"
   # es-node-2:
   #   <<: *elasticsearch-common
   #   container_name: es-node-2
@@ -317,8 +388,134 @@ x-elastic-cluster: &elastic-cluster
     hostname: kibana
     ports:
       - "5601:5601"
+
+  # elastic+     1     0  0 02:31 ?        00:00:00 /usr/bin/tini -- /usr/local/bin/docker-entrypoint sleep inf
+  # elastic+     7     1  1 02:31 ?        00:00:01 elastic-agent container sleep inf
+  fleet:
+    # depends_on:
+    #   init-elastic: {condition: service_completed_successfully}
+    #   kibana: {condition: service_healthy}
+    #   elasticsearch: {condition: service_healthy}
+    container_name: fleet
+    hostname: fleet
+    image: docker.elastic.co/beats/elastic-agent:8.11.0
+    command: sleep inf # FIXME
+    # environment:
+    #   FLEET_SERVER_ENABLE: true 
+    #   FLEET_SERVER_ELASTICSEARCH_HOST: elasticsearch:9200 
+    #   FLEET_SERVER_SERVICE_TOKEN: <service-token> 
+    #   FLEET_SERVER_POLICY_ID: <fleet-server-policy> 
+    ports:
+      - 8220:8220 # fleet server
+      - 8200:8200 # apm server
+
+
+###########################
+##          Ray          ##
+###########################
+
+
+x-ray-cluster: &ray-cluster
+
+
+############################
+##          Dask          ##
+############################
+
+
+x-dask-cluster: &dask-cluster
+
+
+##################################
+##          AI Servers          ##
+##################################
+
+# NOTE:
+# fastapi는 ES VectorDB 기능을 테스트하기 위해서 생성하였으며, 나머지 서버는 추론 전용 프레임워크를 사용함
+# kserve, seldon-core, cortex는 k8s 환경에서 사용가능한 프레임워크로써 여기서는 제외함
+
+x-ai-servers: &ai-servers
+  fastapi:
+    container_name: fastapi
+    hostname: fastapi
+    image: data-infra:fastapi
+    build:
+      context: fastapi
+      dockerfile: dockerfile
+    command: sleep inf
+    volumes:
+      - ./fastapi/app:/opt/app
+    ports:
+      - "10000:8000"
     depends_on:
       elasticsearch: {condition: service_healthy, restart: true}
+  # torchserve:
+  #   container_name: torchserve
+  #   hostname: torchserve
+  #   image: data-infra:torchserve
+  #   build:
+  #     context: model-serving/torchserve
+  #     dockerfile: dockerfile
+  #   ports:
+  #     - "10010:8080"  # inference server
+  #     - "10011:8081"  # management server
+  #     - "10012:8082"  # metrics server
+  # bentoml:
+  #   container_name: bentoml
+  #   hostname: bentoml
+  #   image: data-infra:bentoml
+  #   build:
+  #     context: model-serving/bentoml
+  #     dockerfile: dockerfile
+  #   ports:
+  #     - "10020:3000"  # inference server
+  triton:
+    container_name: triton
+    hostname: triton
+    image: data-infra:triton
+    build:
+      context: model-serving/triton
+      dockerfile: dockerfile
+    ports:
+      - "10030:8000" # http server
+      - "10031:8001" # grpc server
+      - "10032:8002" # metrics server
+    healthcheck:
+      test: curl --fail localhost:8000/v2/health/ready
+      interval: 10s
+      timeout: 50s
+      retries: 10
+
+
+##################################
+##          Monitoring          ##
+##################################
+
+
+x-monitoring: &monitoring
+  # grafana:
+  # prometheus:
+  # jabbix:
+
+
+###############################
+##          Jupyter          ##
+###############################
+
+
+x-jupyter: &jupyter
+  jupyter:
+    container_name: jupyter
+    hostname: jupyter
+    image: quay.io/jupyter/pytorch-notebook:pytorch-2.2.0
+    # image: quay.io/jupyter/pyspark-notebook:spark-3.5.0
+    environment:
+      OPENAI_API_KEY: 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
+      HUGGINGFACEHUB_API_TOKEN: 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
+    volumes:
+      - "./jupyter/data:/home/jovyan"
+    ports:
+      - "8888:8888"
 
 
 ##############################
@@ -327,55 +524,25 @@ x-elastic-cluster: &elastic-cluster
 
 
 x-extras: &extras
-  airflow:
-    container_name: airflow
-    hostname: airflow
-    image: data-infra:airflow
-    build:
-      context: airflow
-      dockerfile: dockerfile
-      args:
-        AIRFLOW_VERSION: 2.6.3
-        PYTHON_VERSION: 3.8
-    volumes:
-      - "./airflow/dags:/opt/airflow/dags"
-      - "./airflow/plugins:/opt/airflow/plugins"
-      - "./airflow/extensions:/opt/airflow/extensions"
-    ports:
-      - "8080:8080"
-  jupyter:
-    container_name: jupyter
-    hostname: jupyter
-    image: quay.io/jupyter/pytorch-notebook:latest
-    ports:
-      - "8888:8888"
-  fastapi:
-    container_name: fastapi
-    hostname: fastapi
-    image: data-infra:fastapi
-    build:
-      context: fastapi
-      dockerfile: dockerfile
-    ports:
-      - "2000:2000"
-    depends_on:
-      elasticsearch: {condition: service_healthy, restart: true}
-  minio:
-    container_name: minio
-    hostname: minio
-    image: quay.io/minio/minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-    #   interval: 30s
-    #   timeout: 20s
-    #   retries: 3
+  # TODO: Use as an production mode
+  # airflow:
+  #   container_name: airflow
+  #   hostname: airflow
+  #   image: data-infra:airflow
+  #   build:
+  #     context: airflow
+  #     dockerfile: dockerfile
+  #     args:
+  #       AIRFLOW_VERSION: 2.6.3
+  #       PYTHON_VERSION: 3.8
+  #   volumes:
+  #     - "./airflow/dags:/opt/airflow/dags"
+  #     - "./airflow/plugins:/opt/airflow/plugins"
+  #     - "./airflow/extensions:/opt/airflow/extensions"
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     mairadb: {condition: service_healthy, restart: true}  # use an dependent database
 
 
 ####################################################
@@ -387,12 +554,19 @@ services:
   <<: [
     # *mariadb,
     # *sqlserver,
-    *zookeeper-cluster,
-    *hadoop-spark-cluster,
+    # *minio,
+    # *zookeeper-cluster,
+    # *hadoop-spark-cluster,
     # *hive-cluster,
     # *kafka-cluster,
     *elastic-cluster,
-    *extras,
+    *ai-servers,
+    *jupyter,
+    # *extras,
+
+    # *ray-cluster, # NOT IMPLEMENTED
+    # *dask-cluster, # NOT IMPLEMENTED
+    # *monitoring  # NOT IMPLEMENTED
   ]
 
 

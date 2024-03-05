@@ -1,0 +1,27 @@
+# https://docs.bentoml.org/en/latest/guides/build-options.html
+
+# 내 생각에는 script 가 더 나은것 같음 (in/output 스키마 지정 가능)
+
+service: 'service_with_script:service'
+labels:
+  owner: clownchrys
+  project: test
+include:
+  - '*.py'
+exclude:
+  - '__pycache__'
+envs:
+  - name: TEST_KEY
+    value: Null
+python:
+  # requirements_txt: ./requirements.txt
+  packages:
+    - torch
+docker: 
+  distro: "debian"
+  cuda_version: "11.6.2"
+  system_packages:
+      - "git"
+      - "ffmpeg"
+  env:
+#       BENTOML_CONFIG: "src/deployment_config.yaml"

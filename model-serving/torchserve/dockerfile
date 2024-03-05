@@ -1,0 +1,31 @@
+FROM python:3.8
+
+# 1. Install JAVA
+ENV JAVA_HOME='/usr/lib/jvm/current'
+ENV PATH=${JAVA_HOME}/bin:${PATH}
+RUN echo 'deb http://ftp.us.debian.org/debian sid main' >> /etc/apt/sources.list
+RUN apt-get update
+RUN apt-get install -y --fix-missing openjdk-11-jdk
+RUN ln -sf '/usr/lib/jvm/java-11-openjdk-amd64' ${JAVA_HOME}
+
+# 2. Install PIP dependencies
+COPY ./requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt
+
+# HEALTHCHECK \
+# --interval=30s \
+# --timeout=30s \
+# --start-period=5s \
+# --retries=3 \
+# CMD [ "echo", "health-checking..." ]
+
+# 3. Setup API
+ENV LOG_LOCATION=/data/log
+ENV MODEL_STORE=/data/model-store
+COPY ./code /code
+
+WORKDIR /code/01-model-archive
+RUN ./run.sh
+
+WORKDIR /code/02-run-server
+CMD ./run.sh

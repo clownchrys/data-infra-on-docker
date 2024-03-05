@@ -67,12 +67,13 @@ bootstrap.memory_lock: true
 # address here to expose this node on the network:
 #
 #network.host: 192.168.0.1
-network.host: _site_
+network.host: 0.0.0.0
+# network.bind_host: _site_
 #
 # By default Elasticsearch listens for HTTP traffic on the first free port it
 # finds starting at 9200. Set a specific HTTP port here:
 #
-#http.port: 9200
+http.port: 9200
 #
 # For more information, consult the network module documentation.
 #
@@ -90,16 +91,17 @@ network.host: _site_
 # For more information, consult the discovery and cluster formation module documentation.
 # discovery.zen.minimum_master_nodes: 1  # deprecated in version 6.x, removed in version 8.x
 # https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery.html
+# discovery.type: single-node
 discovery.seed_hosts:
-  - es-node-1
-  # - es-node-2
-  # - es-node-3
-  # - es-node-4
-  # - es-node-5
+- es-node-1
+# - es-node-2
+# - es-node-3
+# - es-node-4
+# - es-node-5
 cluster.initial_master_nodes:
-  - es-node-1
-  # - es-node-2
-  # - es-node-3
+- es-node-1
+# - es-node-2
+# - es-node-3
 # ---------------------------------- Various -----------------------------------
 #
 # Require explicit names when deleting indices:
@@ -120,7 +122,32 @@ cluster.initial_master_nodes:
 #
 # https://www.elastic.co/guide/en/elasticsearch/reference/7.16/configuring-stack-security.html
 #
-xpack.security.enabled: false
-xpack.security.authc.api_key.enabled: false
-xpack.security.transport.ssl.enabled: false
+
 xpack.monitoring.collection.enabled: true
+
+# SSL Disabled
+# xpack.security:
+#   enabled: false
+#   authc.api_key.enabled: false
+#   transport.ssl.enabled: false
+
+# SSL Enabled
+xpack.security:
+  enabled: true
+  http.ssl:
+    enabled: false
+    # key: certs/${HOSTNAME}/${HOSTNAME}.key
+    # certificate: certs/${HOSTNAME}/${HOSTNAME}.crt
+    # certificate_authorities: certs/ca/ca.crt
+  transport.ssl:
+    enabled: true
+    key: certs/${HOSTNAME}/${HOSTNAME}.key
+    certificate: certs/${HOSTNAME}/${HOSTNAME}.crt
+    certificate_authorities: certs/ca/ca.crt
+    verification_mode: certificate
+  authc.api_key:
+    enabled: true
+
+# ---------------------------------- License ----------------------------------
+# You can use basic or trial license.
+xpack.license.self_generated.type: trial

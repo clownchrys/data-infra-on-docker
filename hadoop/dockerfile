@@ -92,7 +92,7 @@ FROM optimize-hadoop-${OPTIMIZE_HADOOP} AS optimize-hadoop
 FROM optimize-hadoop AS build-spark-false
 FROM optimize-hadoop AS build-spark-true
 
-ARG SPARK_VERSION=3.4.2
+ARG SPARK_VERSION=3.4.1
 ARG SPARK_HADOOP_VERSION=3
 # ARG SPARK_VERSION=3.1.2
 # ARG SPARK_HADOOP_VERSION=3.2
@@ -103,6 +103,11 @@ COPY ./ecosystems/spark/assets/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_V
 RUN mkdir ${BASE_DIR}
 RUN tar xvf /tmp/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION}.tgz -C ${BASE_DIR} 
 RUN ln -sf ${BASE_DIR}/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION} ${BASE_DIR}/current
+
+# COPY ./ecosystems/spark/assets/spark-${SPARK_VERSION}-bin-without-hadoop.tgz /tmp
+# RUN mkdir ${BASE_DIR}
+# RUN tar xvf /tmp/spark-${SPARK_VERSION}-bin-without-hadoop.tgz -C ${BASE_DIR} 
+# RUN ln -sf ${BASE_DIR}/spark-${SPARK_VERSION}-bin-without-hadoop ${BASE_DIR}/current
 
 COPY ./ecosystems/spark/requirements.txt /tmp/
 RUN apt update && apt install -y python3-pip

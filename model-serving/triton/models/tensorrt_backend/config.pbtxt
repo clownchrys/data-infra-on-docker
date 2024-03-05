@@ -1,0 +1,2 @@
+backend: "tensorrt"
+platform: "tensorrt_plan"

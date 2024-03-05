@@ -1,7 +1,7 @@
-ARG ES_VERSION=x.y.z
+ARG VERSION=x.y.z
 
-FROM docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION}
-ARG ES_VERSION
+FROM docker.elastic.co/elasticsearch/elasticsearch:${VERSION}
+ARG VERSION
 
 # Install plugins
 RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install --batch analysis-nori # nori-analyzer
@@ -10,26 +10,86 @@ RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install --batch repository
 
 USER root
 
+# Install Mgmt Tools
+RUN apt update && \
+    apt install -y net-tools vim jq sudo
+
+# Install Certs
+
+# RUN elasticsearch-certutil \
+#     cert \
+#     --self-signed \
+#     -pem \
+#     -in ~/config/instances.yml \
+#     -out ~/certs/bundle.zip
+# RUN unzip ~/certs/bundle.zip -d ~/certs
+
+# RUN elasticsearch-certutil ca --days 730
+# RUN elasticsearch-certutil \
+#     cert \
+#     --self-signed \
+#     -out /shared/elastic-certificates.p12 \
+#     -pass ""
+
 # Metricbeat
-COPY ./assets/metricbeat-${ES_VERSION}-amd64.deb /tmp
-RUN dpkg -i /tmp/metricbeat-${ES_VERSION}-amd64.deb && \
-    metricbeat modules enable elasticsearch-xpack
-COPY ./config/metricbeat/metricbeat.yml /etc/metricbeat/
-COPY ./config/metricbeat/elasticsearch-xpack.yml /etc/metricbeat/modules.d/
+# COPY ./assets/metricbeat-${ES_VERSION}-amd64.deb /tmp
+# RUN dpkg -i /tmp/metricbeat-${ES_VERSION}-amd64.deb && \
+#     metricbeat modules enable elasticsearch-xpack
+# COPY ./config/metricbeat/metricbeat.yml /etc/metricbeat/
+# COPY ./config/metricbeat/elasticsearch-xpack.yml /etc/metricbeat/modules.d/
 
 # Filebeat
 # This is just for example!! (Docker elasticsearch doesn't make log file, except garbage collection)
-COPY ./assets/filebeat-${ES_VERSION}-amd64.deb /tmp
-RUN dpkg -i /tmp/filebeat-${ES_VERSION}-amd64.deb && \
-    filebeat modules enable elasticsearch
-COPY ./config/filebeat/filebeat.yml /etc/filebeat/
-COPY ./config/filebeat/elasticsearch.yml /etc/filebeat/modules.d/
+# COPY ./assets/filebeat-${ES_VERSION}-amd64.deb /tmp
+# RUN dpkg -i /tmp/filebeat-${ES_VERSION}-amd64.deb && \
+#     filebeat modules enable elasticsearch
+# COPY ./config/filebeat/filebeat.yml /etc/filebeat/
+# COPY ./config/filebeat/elasticsearch.yml /etc/filebeat/modules.d/
+
+RUN echo 'elasticsearch:elasticsearch' | chpasswd
+RUN echo 'elasticsearch	ALL=(ALL:ALL) ALL' > /etc/sudoers.d/elasticsearch
 
 # Run Service
 USER elasticsearch
+# password at least 6 chars long
+RUN elasticsearch-users \
+useradd \
+elasticadmin \
+-p elasticadmin \
+-r \
+watcher_admin,\
+apm_system,\
+viewer,\
+rollup_user,\
+logstash_system,\
+kibana_user,\
+beats_admin,\
+remote_monitoring_agent,\
+rollup_admin,\
+data_frame_transforms_admin,\
+snapshot_user,\
+monitoring_user,\
+enrich_user,\
+kibana_admin,\
+logstash_admin,\
+editor,\
+machine_learning_user,\
+data_frame_transforms_user,\
+machine_learning_admin,\
+watcher_user,\
+apm_user,\
+beats_system,\
+reporting_user,\
+transform_user,\
+kibana_system,\
+transform_admin,\
+transport_client,\
+remote_monitoring_collector,\
+superuser,\
+ingest_admin
+
 # COPY scripts/init-es.sh .
 # ENTRYPOINT [ "/bin/tini", "--", "./init-es.sh"]
-
 # CMD service metricbeat start && \
 #     service filebeat start && \
 #     /usr/local/bin/docker-entrypoint.sh

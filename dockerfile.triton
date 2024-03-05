@@ -1,0 +1,188 @@
+ARG TRITON_VERSION=24.01
+ARG USE_PROXY=false
+ARG PROXY_LOCATION=0.0.0.0
+# ARG PROXY_LOCATION=121.189.49.83:3128
+
+FROM nvcr.io/nvidia/tritonserver:${TRITON_VERSION}-py3 AS use-proxy-false
+FROM nvcr.io/nvidia/tritonserver:${TRITON_VERSION}-py3 AS use-proxy-true
+ARG PROXY_LOCATION
+
+ENV http_proxy=${PROXY_LOCATION}
+ENV https_proxy=${PROXY_LOCATION}
+
+COPY <<EOF /etc/apt/apt.conf.d/proxy
+Acquire::http::proxy "http://${http_proxy}";
+Acquire::https::proxy "http://${https_proxy}/";
+EOF
+
+FROM use-proxy-${USE_PROXY} AS builder
+
+# Deps
+RUN apt update && apt install -y git wget
+
+WORKDIR /tmp
+
+RUN wget https://cmake.org/files/v3.28/cmake-3.28.3-linux-x86_64.tar.gz
+RUN git clone https://github.com/speechmatics/ctranslate2_triton_backend.git && cd ctranslate2_triton_backend
+RUN git clone --recursive https://github.com/OpenNMT/CTranslate2.git
+
+WORKDIR /opt/tritonserver
+
+# CMake
+RUN <<EOF
+mkdir /opt/cmake-3.28
+tar -xz -f /tmp/cmake-3.28.3-linux-x86_64.tar.gz --strip-components=1 -C /opt/cmake-3.28
+EOF
+# RUN mkdir /opt/cmake-3.28 \
+#     && tar -xz -f /tmp/cmake-3.28.3-linux-x86_64.tar.gz --strip-components=1 -C /opt/cmake-3.28
+ENV PATH=/opt/cmake-3.28/bin:$PATH
+
+# Intel OneAPI
+RUN <<EOF
+wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \ | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+apt update
+apt install -y intel-basekit
+EOF
+# RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \ | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+# RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+# RUN apt update && apt install -y intel-basekit
+ENV LD_LIBRARY_PATH=/opt/intel/oneapi/2024.0/lib:$LD_LIBRARY_PATH
+
+# CTranslate2
+# RUN ln -sf $(which python3) /usr/bin/python
+# RUN pip install ctranslate2
+RUN <<EOF
+mkdir /tmp/CTranslate2/build
+cd /tmp/CTranslate2/build
+cmake .. > cmake.log
+make -j4 > make.log
+make install > make.install.log
+EOF
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+
+# CTranslate2 Backend
+RUN <<EOF
+apt update
+apt install -y rapidjson-dev
+mkdir /tmp/ctranslate2_triton_backend/build
+cd /tmp/ctranslate2_triton_backend/build
+cmake ..
+-DCMAKE_BUILD_TYPE=Release \
+-DCMAKE_INSTALL_PREFIX:PATH=. \
+-DTRITON_ENABLE_GPU=ON \
+-DTRITON_COMMON_REPO_TAG=r$TRITON_VERSION \
+-DTRITON_CORE_REPO_TAG=r$TRITON_VERSION \
+-DTRITON_BACKEND_REPO_TAG=r$TRITON_VERSION \
+> cmake.log
+make install > make.install.log
+cp -rvf ./install/backends/ctranslate2 /opt/tritonserver/ctranslate2
+chown -R triton-server:triton-server /opt/tritonserver/ctranslate2
+chmod 777 /opt/tritonserver/ctranslate2
+EOF
+
+
+# Runtime Environment
+RUN pip install transformers[torch] ctranslate2 sacremoses sentencepiece
+
+
+# # nllb-py
+# # https://github.com/triton-inference-server/python_backend#quick-start
+# RUN <<EOF
+# MODEL_NAME=nllb_py
+# echo "${MODEL_NAME} installing..."
+
+# mkdir -p /opt/tritonserver/models/${MODEL_NAME}/1
+
+# # model
+# tee /opt/tritonserver/models/${MODEL_NAME}/1/model.py << EOL
+# from transformers import AutoModelForSeq2SeqLM
+# import numpy as np
+# import torch
+# import triton_python_backend_utils as pb_utils
+
+# def build_input(requests: list):
+#     batch_sizes = [np.shape(pb_utils.get_input_tensor_by_name(request, "INPUT_IDS").as_numpy()) for request in requests]
+#     max_len = np.max([bs[1] for bs in batch_sizes])
+#     input_ids = torch.tensor(np.concatenate([np.pad(
+#             pb_utils.get_input_tensor_by_name(request, "INPUT_IDS").as_numpy(),
+#             ((0, 0), (0, max_len - batch_size[1])),
+#             ) for batch_size, request in zip(batch_sizes, requests)], axis=0,)
+#     ).to("cuda")
+#     attention_mask = torch.tensor(
+#         (
+#             np.arange(max_len).repeat(len(requests)).reshape(max_len, len(requests))
+#             < [bs[1] for bs in batch_sizes]
+#         ).T
+#     ).to("cuda")
+#     return batch_sizes, input_ids, attention_mask
+
+# class TritonPythonModel:
+#     def initialize(self, args):
+#         self.model = AutoModelForSeq2SeqLM.from_pretrained("facebook/nllb-200-distilled-600M").to("cuda")
+
+#     def execute(self, requests: list):
+#         batch_sizes, input_ids, attention_mask = build_input(requests)
+#         responses = []
+#         translated_tokens = self.model.generate(input_ids=input_ids, 
+#             attention_mask=attention_mask,
+#             forced_bos_token_id=256042 # German Language token
+#         ).to("cpu")
+
+#         start = 0
+#         for batch_shape in batch_sizes:
+#             out_tensor = pb_utils.Tensor(
+#                 "OUTPUT_IDS", translated_tokens[start : start + batch_shape[0], :].numpy().astype(np.int32)
+#             )
+#             start += batch_shape[0]
+#             responses.append(pb_utils.InferenceResponse(output_tensors=[out_tensor]))
+
+#         return responses
+# EOL
+
+# # config
+# tee /opt/tritonserver/models/${MODEL_NAME}/config.pbtxt << EOL
+# backend: "python"
+# max_batch_size: 128 # can be optimised based on available GPU memory
+# name: "${MODEL_NAME}" # needed for reference in the client
+# input [
+#   {
+#     name: "INPUT_IDS"
+#     data_type: TYPE_INT32
+#     dims: [ -1 ]
+#     allow_ragged_batch: true
+#   }
+# ]
+# output [
+#   {
+#     name: "OUTPUT_IDS"
+#     data_type: TYPE_INT32
+#     dims: [ -1 ]
+#   }
+# ]
+# instance_group [{ kind: KIND_GPU }]
+# dynamic_batching {
+#   max_queue_delay_microseconds: 5000
+# }
+# EOL
+# EOF
+
+# nllb-ct2
+RUN <<EOF
+MODEL_NAME=nllb_ct2
+echo "${MODEL_NAME} installing..."
+
+mkdir -p /opt/tritonserver/models/${MODEL_NAME}/1
+
+# model
+ct2-transformers-converter \
+    --force \
+    --low_cpu_mem_usage \
+    --model facebook/nllb-200-distilled-600M \
+    --output /opt/tritonserver/models/${MODEL_NAME}/1/model \
+    --quantization float32
+
+# config
+wget -O- https://raw.githubusercontent.com/speechmatics/ctranslate2_triton_backend/main/examples/model_repo/facebook_m2m100_1.2B/config.pbtxt
+> /opt/tritonserver/models/${MODEL_NAME}/config.pbtxt
+EOF

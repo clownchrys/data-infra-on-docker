@@ -14,7 +14,7 @@ def main():
     serving_op = ESWriteOperation.INDEX.value
     embedding_path = "s3://test/example/MF.jit.pt"
     index_path = "s3://test/example/MF.index2item.json"
-    # feature_table_path = "path.to.table"
+    feature_table_path = "path.to.table"
 
     # get all tables
     embedding_table = generate_embedding_table(
@@ -23,10 +23,10 @@ def main():
         embedding_path=embedding_path,
         index_path=index_path,
     )
-    # feature_table = spark.read.table(feature_table_path)
+    feature_table = spark.read.table(feature_table_path)
 
     # add features to search
-    # transformed_df = embedding_table.join(feature_table, primary_key, "inner")
+    transformed_df = embedding_table.join(feature_table, primary_key, "inner")
 
     # serve into es
     es_opts = {

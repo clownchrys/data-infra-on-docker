@@ -1,0 +1,29 @@
+# to use: 
+# elasticsearch-certutil \
+# cert \
+# --self-signed \
+# -pem \
+# -in ~/config/instantces.yml \
+# -out ~/certs/bundle.zip` \
+# && unzip ~/certs/bundle.zip -d ~/certs
+
+# instances:
+# - name: elasticsearch
+#   dns: [ elasticsearch ]
+#   # ip: [ 127.0.0.1 ]
+# - name: es-node-1
+#   dns: [ es-node-1 ]
+# - name: kibana
+#   dns: [ kibana ]
+
+instances: [
+  {name: elasticsearch, dns: [elasticsearch]},
+  {name: es-node-1, dns: [es-node-1]},
+  {name: es-node-2, dns: [es-node-2]},
+  {name: es-node-3, dns: [es-node-3]},
+  {name: es-node-4, dns: [es-node-4]},
+  {name: es-node-5, dns: [es-node-5]},
+  {name: logstash-1, dns: [logstash-1]},
+  {name: logstash-2, dns: [logstash-2]},
+  {name: kibana, dns: [kibana]},
+]
