@@ -16,7 +16,7 @@ pydantic==2.6.1
 pydantic_core==2.16.2
 pytz==2024.1
 psutil==5.9.8
-itsdangerous==2.1.2
+itsdangerous==2.1.2 # starlette.sessions.SessionMiddleware
 numpy==1.24.4
 async_timeout==4.0.3
 pyyaml==6.0.1
