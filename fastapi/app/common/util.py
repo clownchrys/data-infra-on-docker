@@ -4,16 +4,92 @@ import os
 import re
 import yaml
 
-from pydantic_core import core_schema
+import numpy as np
+
 from pydantic import (
+    Field,
     BaseModel,
     GetCoreSchemaHandler,
     # GetJsonSchemaHandler,
     # ValidationError,
 )
+from pydantic_core import (
+    core_schema,
+    PydanticCustomError,
+    ValidationError,
+    InitErrorDetails,
+)
 # from pydantic.json_schema import JsonSchemaValue
 
-import numpy as np
+
+class ValidationSpec(BaseModel):
+    function: AnyStr
+    args: List[Any] = Field(default=[])
+    kwargs: Dict[AnyStr, Any] = Field(default={})
+
+
+class ValidationResult(BaseModel):
+    is_valid: bool
+    msg: str = Field(default="")
+
+
+class PydanticBaseModel(BaseModel):
+    """
+    [EXAMPLE]
+    class TestModel(PydanticBaseModel):
+        __USER_DEFINED_VALIDATION__: List[ValidationSpec] = [
+            ValidationSpec(function="validate_not_none", args=["a", "b"], kwargs={"min_count": 2}), # Validation Failed
+            ValidationSpec(function="validate_not_none1", args=["b", "c"], kwargs={"min_count": 1}), # Spec Invalid
+        ]
+        a: int
+        b: Optional[int]
+        c: Optional[int]
+
+    model = TestModel(a=1, b=None, c=None) // 2 validation error!
+    """
+    __USER_DEFINED_VALIDATION__: List[ValidationSpec] = []
+    __USER_DEFINED_VALIDATION_SCOPE__: AnyStr = "User-Defined Validation"
+
+    def model_post_init(self, context) -> None:
+        data = self.dict()
+        errors = []
+
+        for spec in self.__USER_DEFINED_VALIDATION__:
+            try:
+                result = eval("self." + spec.function)(*spec.args, **spec.kwargs)
+            except:
+                error = InitErrorDetails(
+                    type = PydanticCustomError(spec.__repr__(), "invalid spec defined"),
+                    loc = [ self.__USER_DEFINED_VALIDATION_SCOPE__ ],
+                    input = data,
+                )
+                errors.append(error)
+                continue
+                
+            if not result.is_valid:
+                error = InitErrorDetails(
+                    type = PydanticCustomError(spec.__repr__(), result.msg),
+                    loc = [ self.__USER_DEFINED_VALIDATION_SCOPE__ ],
+                    input = data,
+                )
+                errors.append(error)
+        
+        if errors:
+            raise ValidationError.from_exception_data(title=self.__USER_DEFINED_VALIDATION_SCOPE__ + " Failed", line_errors=errors)
+
+    def validate_not_none(
+        self,
+        *field_names: str,
+        **kwargs,
+    ) -> ValidationResult:
+        data = self.dict()
+        is_not_none = map(lambda key: data[key] is not None, field_names)
+        count_not_none = len(list(filter(None, is_not_none)))
+
+        if kwargs.get("min_count", 0) <= count_not_none <= kwargs.get("max_count", len(field_names)):
+            return ValidationResult(is_valid=True)
+        else:
+            return ValidationResult(is_valid=False, msg=f"{count_not_none} fields validated")
 
 
 def NumpyArray(
@@ -26,16 +102,16 @@ def NumpyArray(
     [EXAMPLE]
     from pydantic import BaseModel
 
-    class Model(BaseModel):
+    class TestModel(BaseModel):
         value: NumpyArray(dtype=float, shape=[3, 3], is_strict=False)
 
-    model = Model(value=list(range(9)))  # OK
-    model = Model(value=list(range(3)))  # Error
+    model = TestModel(value=list(range(9)))  # OK
+    model = TestModel(value=list(range(3)))  # Error
 
-    class Model(BaseModel):
+    class TestModel(BaseModel):
         value: NumpyArray(dtype=float, shape=[3, 3], is_strict=False)
 
-    model = Model(value=list(range(9)))  # Error
+    model = TestModel(value=list(range(9)))  # Error
     """
     
     shape = tuple(shape)
@@ -88,6 +164,11 @@ def NumpyArray(
 def parse_yaml(path: str) -> Dict[str, Any]:
     """
     To parse yaml file with environment variables
+
+    [EXAMPLE]
+    some_a:
+      var1: ${ENVVAR} # $ENVVAR or <EMPTY_VALUE>
+      var2: ${ENVVAR:DEFAULT_VALUE} # $ENVVAR or <DEFAULT_VALUE>
     """
     tag = None
     value_matcher = re.compile(r"\${([^}^{]+)}")
