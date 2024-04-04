@@ -1,12 +1,12 @@
 from fastapi import APIRouter
 from model.test import TestRequest
-from common.route_class import LoggingRoute
+from common.route_class import AccessLogRoute
 
 
 router = APIRouter(
     prefix="/test",
     tags=["TEST"],
-    route_class=LoggingRoute
+    route_class=AccessLogRoute
 )
 
 

@@ -11,7 +11,7 @@ from starlette_csrf import CSRFMiddleware
 from starlette_prometheus import metrics, PrometheusMiddleware
 
 from common.logger import AppLogger
-from common.exception import ExceptionHandler
+from common.exception import APIException, ExceptionHandler
 from common.middleware import (
     TimeoutMiddleware,
     AtTimeMiddleware,
@@ -64,14 +64,8 @@ FastAPI(
 
 app = FastAPI(
     middleware=[
-        Middleware(
-            TrustedHostMiddleware,
-            allowed_hosts=["*"]
-        ),
-        Middleware(
-            CORSMiddleware,
-            allow_origins=['*']
-        ),
+        Middleware(TrustedHostMiddleware, allowed_hosts=["*"]),
+        Middleware( CORSMiddleware, allow_origins=['*']),
         # Middleware(
         #     CSRFMiddleware,
         #     secret="<CSRF_SECRET>"
@@ -84,28 +78,19 @@ app = FastAPI(
             # validator=is_valid_uuid4,
             # transformer=lambda a: a,
         ),
-        Middleware(
-            SessionMiddleware,
-            secret_key="<SESSION_SECRET>"
-        ),
-        Middleware(
-            PrometheusMiddleware,
-        ),
-        Middleware(
-            TimeoutMiddleware,
-            timeout=3,
-        ),
-        Middleware(
-            AtTimeMiddleware,
-        )
+        Middleware(SessionMiddleware, secret_key="<SESSION_SECRET>"),
+        Middleware(PrometheusMiddleware),
+        Middleware(TimeoutMiddleware, timeout=3),
+        Middleware(AtTimeMiddleware)
     ],
     exception_handlers={
-        Exception: ExceptionHandler.unhandled_exception,
+        Exception: ExceptionHandler.UnhandledException,
     }
 )
 
 # Routers
-app.add_route("/metrics/", metrics) # prometheus
+app.add_route("/metrics", metrics) # prometheus
+
 app.include_router(common.router)
 app.include_router(test.router)
 app.include_router(jk_recom_actvtbased.router)
@@ -113,19 +98,15 @@ app.include_router(jk_recom_actvtbased.router)
 # Lifespan
 @app.on_event("startup")
 async def on_startup():
-    AppLogger.info(
-        f"[Worker-{os.getpid()}] server startup"
-    )
+    AppLogger.info("server startup")
 
 @app.on_event("shutdown")
 async def on_shutdown():
-    AppLogger.info(
-        f"[Worker-{os.getpid()}] server shutdown"
-    )
+    AppLogger.info("server shutdown")
 
-# @app.get("/")
-# def read_root():
-#     return {"Hello": "World"}
+@app.get("/", response_model_exclude_none=True)
+def read_root():
+    return {"Hello": "World"}
 
 # @app.get("/items/{item_id}")
 # def read_item(item_id: int, q: Union[str, None] = None):

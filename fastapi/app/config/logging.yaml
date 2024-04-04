@@ -3,7 +3,7 @@ disable_existing_loggers: False
 
 formatters:
   basic:
-    format: "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
+    format: "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] [%(process)d] - %(message)s"
     datefmt: "%Y-%m-%d %H:%M:%ST%z"
 
 handlers: 
@@ -82,12 +82,12 @@ loggers:
   AppLogger:
     level: INFO
     handlers: [console, application_rotate]
-    propagate: False
+    propagate: True
   AccessLogger:
     level: INFO
     handlers: [console, access_rotate]
-    propagate: False
+    propagate: True
   ErrorLogger:
     level: INFO
     handlers: [console, error_rotate]
-    propagate: False
+    propagate: True

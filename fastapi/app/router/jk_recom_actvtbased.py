@@ -6,7 +6,7 @@ from model.jk_recom_actvtbased import (
     CsvApiInput, CsvApiOutput, _CsvApiOutputGnoMeta,
 )
 from external.elasticsearch import client as es
-from common.route_class import LoggingRoute
+from common.route_class import AccessLogRoute
 from common.decorator import use_mockup
 
 
@@ -37,7 +37,7 @@ APIRouter(
 router = APIRouter(
     prefix="/recommend/actvtbased",
     tags=["Jobkorea Recommend"],
-    route_class=LoggingRoute,
+    route_class=AccessLogRoute,
 )
 
 
