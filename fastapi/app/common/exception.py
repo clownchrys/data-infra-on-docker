@@ -1,36 +1,27 @@
 import traceback as tb
+from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from fastapi import (
-    status,
-    BackgroundTasks,
-)
+from fastapi import status, BackgroundTasks
+from fastapi.exceptions import ValidationException
+
 from common.logger import ErrorLogger
 
 
-# class APIException(Exception):
-#     def __init__(self, err_code: int, err_msg: str):
-#         self.err_code = err_code
-#         self.err_msg = err_msg
-
-
 class APIException(Exception):
-    def __init__(self, response_status_code: int, response_content: dict):
+    def __init__(self, status_code: int, response: BaseModel):
         """
         response = TestResponse()
-        raise APIException(status.HTTP_400_BAD_REQUEST, response.dict())
+        raise APIException(status.HTTP_400_BAD_REQUEST, response)
         """
-        self.response_status_code = response_status_code
-        self.response_content = response_content
+        assert isinstance(response, BaseModel), "response is not a pydantic model"
+        self.status_code = status_code
+        self.response = response
 
 
 class ExceptionHandler:
     @classmethod
     async def APIException(cls, request: Request, exception: APIException):
-        response = JSONResponse(
-            status_code=exception.response_status_code,
-            content=exception.response_content,
-        )
         ErrorLogger.error({
             "headers": dict(request.headers),
             "error": {
@@ -38,6 +29,26 @@ class ExceptionHandler:
                 "traceback": "".join(tb.format_exception(type(exception), value=exception, tb=exception.__traceback__)),
             }
         })
+        response = JSONResponse(
+            status_code=exception.status_code,
+            content=exception.response.dict(),
+        )
+        return response
+    
+
+    @classmethod
+    async def ValidationException(cls, request: Request, exception: ValidationException):
+        ErrorLogger.error({
+            "headers": dict(request.headers),
+            "error": {
+                "type": type(exception).__qualname__,
+                "traceback": exception.errors(),
+            }
+        })
+        response = JSONResponse(
+            status_code=exception.status_code,
+            content={"detail": exception.errors(), "body": exception.body},
+        )
         return response
 
 

@@ -6,14 +6,10 @@ from typing import *
 # import traceback as tb
 # from datetime import datetime
 
-from fastapi import (
-    Request,
-    Response,
-    # BackgroundTasks,
-    # status,
-)
-# from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.routing import APIRoute
+from fastapi import status, Request, Response#, BackgroundTasks
+from fastapi.exceptions import ValidationException
+# from fastapi.responses import JSONResponse, StreamingResponse
 
 from common.logger import AccessLogger
 from common.exception import APIException
@@ -32,10 +28,14 @@ class AccessLogRoute(APIRoute):
                 log["status_code"] = response.status_code
                 return response
             except APIException as e:
-                log["status_code"] = e.response_status_code
-                raise e
+                log["status_code"] = e.status_code
+                raise
+            except ValidationException as e:
+                log["status_code"] = status.HTTP_422_UNPROCESSABLE_ENTITY
+                raise
             except Exception as e:
-                raise e
+                log["status_code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+                raise # TODO: newly implemented UnhandledException(str(e))
             finally:
                 AccessLogger.info(log)
 

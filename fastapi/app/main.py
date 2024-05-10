@@ -3,6 +3,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware import Middleware
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -84,6 +85,9 @@ app = FastAPI(
         Middleware(AtTimeMiddleware)
     ],
     exception_handlers={
+        APIException: ExceptionHandler.APIException,
+        RequestValidationError: ExceptionHandler.ValidationException,
+        ResponseValidationError: ExceptionHandler.ValidationException,
         Exception: ExceptionHandler.UnhandledException,
     }
 )
